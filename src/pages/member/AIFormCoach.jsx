@@ -17,8 +17,6 @@ import {
   Flame,
   Dumbbell,
   X,
-  ChevronRight,
-  TrendingUp,
   Search,
   Maximize2,
   Minimize2,
@@ -29,8 +27,6 @@ import { generateSetSummary } from "../../services/aiService";
 import {
   recordMemberAISession,
   saveMemberAISetSummary,
-  clearMemberAISetSummary,
-  getMemberLatestAISetSummary,
 } from "../../services/mockData";
 
 // ================================================================
@@ -72,6 +68,68 @@ const L = {
   R_FOOT: 32,
 };
 
+// ================================================================
+//  BIOMECHANICAL & FILTER CONSTANTS
+// ================================================================
+const MIN_LANDMARK_VISIBILITY = 0.65; // Minimum confidence score required per landmark
+const EMA_ALPHA = 0.35; // Tunable Exponential Moving Average smoothing factor for derived angles (0.1 = heavy smoothing/lag, 0.9 = fast/raw)
+const HYSTERESIS_BUFFER_DEG = 6; // Hysteresis threshold buffer (in degrees) to prevent boundary flapping
+const STATE_HOLD_CONSECUTIVE_FRAMES = 3; // Minimum consecutive frames required to confirm FSM phase transition
+const POSITIONING_STABILITY_FRAMES = 30; // Frames (~1s at 30fps) of clean posture required to lock calibration
+
+// Exercise-specific Camera Positioning & View Guidance
+const EXERCISE_POSITIONING_GUIDES = {
+  squat: {
+    recommendedView: "Side-On (Profile View)",
+    icon: "📐",
+    cue: "Stand sideways (profile view) ~6-8 feet away so your full body (shoulder to ankle) is visible.",
+    keyLandmarks: [L.R_SHOULDER, L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_SHOULDER, L.L_HIP, L.L_KNEE, L.L_ANKLE],
+    requireEitherSide: true,
+  },
+  deadlift: {
+    recommendedView: "Side-On (Profile View)",
+    icon: "📐",
+    cue: "Turn sideways to camera ~6-8 feet back to capture spine angle and hip hinge depth.",
+    keyLandmarks: [L.R_SHOULDER, L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_SHOULDER, L.L_HIP, L.L_KNEE, L.L_ANKLE],
+    requireEitherSide: true,
+  },
+  lunge: {
+    recommendedView: "Side-On (Profile View)",
+    icon: "📐",
+    cue: "Turn sideways to camera so knee travel and shin verticality can be tracked.",
+    keyLandmarks: [L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_HIP, L.L_KNEE, L.L_ANKLE],
+    requireEitherSide: true,
+  },
+  bicep_curl: {
+    recommendedView: "Front-On View",
+    icon: "🧍",
+    cue: "Face camera ~5-6 feet away with shoulders, elbows, and wrists clearly inside the frame.",
+    keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
+    requireEitherSide: false,
+  },
+  pushup: {
+    recommendedView: "Side-On (Profile View)",
+    icon: "📐",
+    cue: "Position camera at low/floor level sideways to capture full horizontal plank posture.",
+    keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.R_HIP, L.R_ANKLE],
+    requireEitherSide: true,
+  },
+  shoulder_press: {
+    recommendedView: "Front or 45° Angle",
+    icon: "🧍",
+    cue: "Face camera with full upper body and complete overhead lockout clearance visible.",
+    keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
+    requireEitherSide: false,
+  },
+  lateral_raise: {
+    recommendedView: "Front-On View",
+    icon: "🧍",
+    cue: "Stand facing camera with enough lateral clearance to raise both arms horizontally.",
+    keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
+    requireEitherSide: false,
+  },
+};
+
 // Popular Quick Suggestion Exercises
 const QUICK_SUGGESTIONS = [
   "Squat",
@@ -96,6 +154,13 @@ const resolveExerciseType = (input) => {
   return "squat";
 };
 
+// Exponential Moving Average (EMA) Angle Filter
+const applyAngleEMA = (currentAngle, prevAngle, alpha = EMA_ALPHA) => {
+  if (currentAngle === null || currentAngle === undefined) return prevAngle ?? null;
+  if (prevAngle === null || prevAngle === undefined) return currentAngle;
+  return prevAngle + alpha * (currentAngle - prevAngle);
+};
+
 // Angle calculation helper between three 2D landmarks (with vertex at b)
 const calcAngle = (a, b, c) => {
   if (!a || !b || !c) return null;
@@ -103,6 +168,24 @@ const calcAngle = (a, b, c) => {
   let angle = Math.abs((radians * 180.0) / Math.PI);
   if (angle > 180.0) angle = 360.0 - angle;
   return angle;
+};
+
+// Verified Angle Calculator with per-landmark visibility score enforcement
+const calcAngleWithVisibility = (a, b, c, minVis = MIN_LANDMARK_VISIBILITY) => {
+  if (!a || !b || !c) {
+    return { angle: null, isValid: false, minVis: 0 };
+  }
+  const visA = a.visibility ?? 1.0;
+  const visB = b.visibility ?? 1.0;
+  const visC = c.visibility ?? 1.0;
+  const minVisFound = Math.min(visA, visB, visC);
+
+  if (minVisFound < minVis) {
+    return { angle: null, isValid: false, minVis: minVisFound };
+  }
+
+  const rawAngle = calcAngle(a, b, c);
+  return { angle: rawAngle, isValid: true, minVis: minVisFound };
 };
 
 export default function AIFormCoach() {
@@ -114,6 +197,18 @@ export default function AIFormCoach() {
   const [isCameraRunning, setIsCameraRunning] = useState(false);
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  // Positioning & Confidence State
+  const [isTrackingConfidenceLow, setIsTrackingConfidenceLow] = useState(false);
+  const [positioningLockPercent, setPositioningLockPercent] = useState(0);
+  const [isPositionLocked, setIsPositionLocked] = useState(false);
+  const [positioningFeedback, setPositioningFeedback] = useState({
+    ready: false,
+    recommendedView: "Side-On (Profile View)",
+    icon: "📐",
+    cue: "Step into camera frame",
+    missing: null,
+  });
 
   // Live Metrics State
   const [reps, setReps] = useState(0);
@@ -158,7 +253,14 @@ export default function AIFormCoach() {
     goodReps: 0,
     badReps: 0,
     stage: "start",
+    fsmCandidateStage: null,
+    fsmCandidateCount: 0,
     smoothAngle: null,
+    smoothSecondaryAngle: null,
+    lastKnownGoodAngle: null,
+    lastKnownGoodSecondary: null,
+    consecutiveLowConfidenceFrames: 0,
+    positioningStableFrames: 0,
     lastRepTime: 0,
     currentRepFlaws: [],
     startTime: 0,
@@ -227,79 +329,204 @@ export default function AIFormCoach() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Get primary joint angle with auto-fallback to clearer body side
+  // Check Landmark Positioning and Camera Orientation for Selected Exercise
+  const checkPositioningReadiness = (lm, exType) => {
+    const guide = EXERCISE_POSITIONING_GUIDES[exType] || EXERCISE_POSITIONING_GUIDES.squat;
+    if (!lm || lm.length === 0) {
+      return {
+        ready: false,
+        recommendedView: guide.recommendedView,
+        icon: guide.icon,
+        cue: guide.cue,
+        missing: "Step into camera frame",
+      };
+    }
+
+    const isPointInFrame = (pt) => {
+      if (!pt) return false;
+      const vis = pt.visibility ?? 1.0;
+      const inside = pt.x >= 0.03 && pt.x <= 0.97 && pt.y >= 0.03 && pt.y <= 0.97;
+      return vis >= MIN_LANDMARK_VISIBILITY && inside;
+    };
+
+    if (guide.requireEitherSide) {
+      // Profile side exercises require full visible chain on either right or left side
+      const rightChain = [L.R_SHOULDER, L.R_HIP, L.R_KNEE, L.R_ANKLE].every((idx) => isPointInFrame(lm[idx]));
+      const leftChain = [L.L_SHOULDER, L.L_HIP, L.L_KNEE, L.L_ANKLE].every((idx) => isPointInFrame(lm[idx]));
+      const ready = rightChain || leftChain;
+      return {
+        ready,
+        recommendedView: guide.recommendedView,
+        icon: guide.icon,
+        cue: guide.cue,
+        missing: ready ? null : "Position full body sideways (shoulder to ankle visible)",
+      };
+    } else {
+      // Front view exercises require upper body landmarks
+      const allReady = guide.keyLandmarks.every((idx) => isPointInFrame(lm[idx]));
+      return {
+        ready: allReady,
+        recommendedView: guide.recommendedView,
+        icon: guide.icon,
+        cue: guide.cue,
+        missing: allReady ? null : "Ensure torso and arms are fully inside video frame",
+      };
+    }
+  };
+
+  // Get primary joint angle with per-landmark visibility score enforcement and hold fallback
   const getBiomechanicalAngle = (lm, type) => {
-    let angle = null;
-    let secondary = null;
+    let primaryAngle = null;
+    let secondaryAngleVal = null;
+    let isConfidenceGood = false;
+
+    if (!lm || lm.length === 0) {
+      return {
+        angle: runtimeRef.current.lastKnownGoodAngle,
+        secondary: runtimeRef.current.lastKnownGoodSecondary,
+        isConfidenceGood: false,
+      };
+    }
 
     switch (type) {
       case "squat":
       case "lunge": {
         const rHip = lm[L.R_HIP], rKnee = lm[L.R_KNEE], rAnkle = lm[L.R_ANKLE];
         const lHip = lm[L.L_HIP], lKnee = lm[L.L_KNEE], lAnkle = lm[L.L_ANKLE];
-        const visR = (rHip?.visibility ?? 0) + (rKnee?.visibility ?? 0) + (rAnkle?.visibility ?? 0);
-        const visL = (lHip?.visibility ?? 0) + (lKnee?.visibility ?? 0) + (lAnkle?.visibility ?? 0);
-        if (visR >= visL) {
-          angle = calcAngle(rHip, rKnee, rAnkle);
-          secondary = calcAngle(lHip, lKnee, lAnkle);
-        } else {
-          angle = calcAngle(lHip, lKnee, lAnkle);
-          secondary = calcAngle(rHip, rKnee, rAnkle);
+
+        const rightRes = calcAngleWithVisibility(rHip, rKnee, rAnkle, MIN_LANDMARK_VISIBILITY);
+        const leftRes = calcAngleWithVisibility(lHip, lKnee, lAnkle, MIN_LANDMARK_VISIBILITY);
+
+        if (rightRes.isValid && leftRes.isValid) {
+          isConfidenceGood = true;
+          if (rightRes.minVis >= leftRes.minVis) {
+            primaryAngle = rightRes.angle;
+            secondaryAngleVal = leftRes.angle;
+          } else {
+            primaryAngle = leftRes.angle;
+            secondaryAngleVal = rightRes.angle;
+          }
+        } else if (rightRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = rightRes.angle;
+          secondaryAngleVal = leftRes.angle; // might be null
+        } else if (leftRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = leftRes.angle;
+          secondaryAngleVal = rightRes.angle; // might be null
         }
         break;
       }
+
       case "bicep_curl":
       case "pushup": {
         const rS = lm[L.R_SHOULDER], rE = lm[L.R_ELBOW], rW = lm[L.R_WRIST];
         const lS = lm[L.L_SHOULDER], lE = lm[L.L_ELBOW], lW = lm[L.L_WRIST];
-        const visR = (rS?.visibility ?? 0) + (rE?.visibility ?? 0) + (rW?.visibility ?? 0);
-        const visL = (lS?.visibility ?? 0) + (lE?.visibility ?? 0) + (lW?.visibility ?? 0);
-        if (visR >= visL) {
-          angle = calcAngle(rS, rE, rW);
-          secondary = calcAngle(lS, lE, lW);
-        } else {
-          angle = calcAngle(lS, lE, lW);
-          secondary = calcAngle(rS, rE, rW);
+
+        const rightRes = calcAngleWithVisibility(rS, rE, rW, MIN_LANDMARK_VISIBILITY);
+        const leftRes = calcAngleWithVisibility(lS, lE, lW, MIN_LANDMARK_VISIBILITY);
+
+        if (rightRes.isValid && leftRes.isValid) {
+          isConfidenceGood = true;
+          if (rightRes.minVis >= leftRes.minVis) {
+            primaryAngle = rightRes.angle;
+            secondaryAngleVal = leftRes.angle;
+          } else {
+            primaryAngle = leftRes.angle;
+            secondaryAngleVal = rightRes.angle;
+          }
+        } else if (rightRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = rightRes.angle;
+          secondaryAngleVal = leftRes.angle;
+        } else if (leftRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = leftRes.angle;
+          secondaryAngleVal = rightRes.angle;
         }
         break;
       }
+
       case "shoulder_press":
       case "lateral_raise": {
         const rH = lm[L.R_HIP], rS = lm[L.R_SHOULDER], rE = lm[L.R_ELBOW];
         const lH = lm[L.L_HIP], lS = lm[L.L_SHOULDER], lE = lm[L.L_ELBOW];
-        const visR = (rH?.visibility ?? 0) + (rS?.visibility ?? 0) + (rE?.visibility ?? 0);
-        const visL = (lH?.visibility ?? 0) + (lS?.visibility ?? 0) + (lE?.visibility ?? 0);
-        if (visR >= visL) {
-          angle = calcAngle(rH, rS, rE);
-          secondary = calcAngle(lH, lS, lE);
-        } else {
-          angle = calcAngle(lH, lS, lE);
-          secondary = calcAngle(rH, rS, rE);
+
+        const rightRes = calcAngleWithVisibility(rH, rS, rE, MIN_LANDMARK_VISIBILITY);
+        const leftRes = calcAngleWithVisibility(lH, lS, lE, MIN_LANDMARK_VISIBILITY);
+
+        if (rightRes.isValid && leftRes.isValid) {
+          isConfidenceGood = true;
+          if (rightRes.minVis >= leftRes.minVis) {
+            primaryAngle = rightRes.angle;
+            secondaryAngleVal = leftRes.angle;
+          } else {
+            primaryAngle = leftRes.angle;
+            secondaryAngleVal = rightRes.angle;
+          }
+        } else if (rightRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = rightRes.angle;
+          secondaryAngleVal = leftRes.angle;
+        } else if (leftRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = leftRes.angle;
+          secondaryAngleVal = rightRes.angle;
         }
         break;
       }
+
       case "deadlift": {
         const rS = lm[L.R_SHOULDER], rH = lm[L.R_HIP], rK = lm[L.R_KNEE];
         const lS = lm[L.L_SHOULDER], lH = lm[L.L_HIP], lK = lm[L.L_KNEE];
-        const visR = (rS?.visibility ?? 0) + (rH?.visibility ?? 0) + (rK?.visibility ?? 0);
-        const visL = (lS?.visibility ?? 0) + (lH?.visibility ?? 0) + (lK?.visibility ?? 0);
-        if (visR >= visL) {
-          angle = calcAngle(rS, rH, rK);
-          secondary = calcAngle(lS, lH, lK);
-        } else {
-          angle = calcAngle(lS, lH, lK);
-          secondary = calcAngle(rS, rH, rK);
+
+        const rightRes = calcAngleWithVisibility(rS, rH, rK, MIN_LANDMARK_VISIBILITY);
+        const leftRes = calcAngleWithVisibility(lS, lH, lK, MIN_LANDMARK_VISIBILITY);
+
+        if (rightRes.isValid && leftRes.isValid) {
+          isConfidenceGood = true;
+          if (rightRes.minVis >= leftRes.minVis) {
+            primaryAngle = rightRes.angle;
+            secondaryAngleVal = leftRes.angle;
+          } else {
+            primaryAngle = leftRes.angle;
+            secondaryAngleVal = rightRes.angle;
+          }
+        } else if (rightRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = rightRes.angle;
+          secondaryAngleVal = leftRes.angle;
+        } else if (leftRes.isValid) {
+          isConfidenceGood = true;
+          primaryAngle = leftRes.angle;
+          secondaryAngleVal = rightRes.angle;
         }
         break;
       }
+
       default: {
         const rS = lm[L.R_SHOULDER], rE = lm[L.R_ELBOW], rW = lm[L.R_WRIST];
-        angle = calcAngle(rS, rE, rW);
+        const defaultRes = calcAngleWithVisibility(rS, rE, rW, MIN_LANDMARK_VISIBILITY);
+        isConfidenceGood = defaultRes.isValid;
+        primaryAngle = defaultRes.angle;
         break;
       }
     }
 
-    return { angle, secondary };
+    // Hold last known good angle if current frame visibility is insufficient
+    if (isConfidenceGood && primaryAngle !== null) {
+      runtimeRef.current.lastKnownGoodAngle = primaryAngle;
+      if (secondaryAngleVal !== null) {
+        runtimeRef.current.lastKnownGoodSecondary = secondaryAngleVal;
+      }
+      return { angle: primaryAngle, secondary: secondaryAngleVal, isConfidenceGood: true };
+    } else {
+      return {
+        angle: runtimeRef.current.lastKnownGoodAngle,
+        secondary: runtimeRef.current.lastKnownGoodSecondary,
+        isConfidenceGood: false,
+      };
+    }
   };
 
   // Evaluate Biomechanical Flaws
@@ -380,147 +607,195 @@ export default function AIFormCoach() {
     return flaws;
   };
 
-  // Robust Hysteresis Rep Evaluation
+  // Robust Finite State Machine (FSM) Rep Counter with Hysteresis & Debounce Confirmation
   const evaluateRep = (smoothedAngle, type) => {
     const now = Date.now();
     const currentStage = runtimeRef.current.stage;
+    const buffer = HYSTERESIS_BUFFER_DEG;
+    const requiredFrames = STATE_HOLD_CONSECUTIVE_FRAMES;
 
     let repTriggered = false;
     let movementStateText = "READY";
 
-    switch (type) {
-      case "squat":
-        if (smoothedAngle <= 105) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "DEEP SQUAT (PARALLEL)";
-        } else if (smoothedAngle >= 150) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "STANDING LOCKOUT";
-        } else {
-          movementStateText = currentStage === "inflection" ? "ASCENDING" : "DESCENDING";
-        }
-        break;
+    // Lookup exercise thresholds
+    const configMap = {
+      squat: {
+        bottom: 105,
+        lockout: 150,
+        inverted: false,
+        inflectionLabel: "DEEP SQUAT (PARALLEL)",
+        lockoutLabel: "STANDING LOCKOUT",
+        asc: "ASCENDING",
+        desc: "DESCENDING",
+      },
+      bicep_curl: {
+        bottom: 65,
+        lockout: 135,
+        inverted: false,
+        inflectionLabel: "PEAK BICEP CURL",
+        lockoutLabel: "FULL EXTENSION",
+        asc: "LOWERING WEIGHT",
+        desc: "CURLING UP",
+      },
+      pushup: {
+        bottom: 95,
+        lockout: 150,
+        inverted: false,
+        inflectionLabel: "CHEST AT FLOOR",
+        lockoutLabel: "PLANK LOCKOUT",
+        asc: "PRESSING UP",
+        desc: "DESCENDING",
+      },
+      shoulder_press: {
+        bottom: 100, // Rack starting position
+        lockout: 150, // Overhead lockout
+        inverted: true,
+        inflectionLabel: "OVERHEAD LOCKOUT",
+        lockoutLabel: "RACK POSITION",
+        asc: "LOWERING BAR",
+        desc: "PRESSING UP",
+      },
+      lateral_raise: {
+        bottom: 35, // Arms at sides
+        lockout: 75, // Peak horizontal raise
+        inverted: true,
+        inflectionLabel: "PEAK LATERAL RAISE",
+        lockoutLabel: "ARMS AT SIDES",
+        asc: "LOWERING ARMS",
+        desc: "RAISING LATERAL",
+      },
+      deadlift: {
+        bottom: 105,
+        lockout: 155,
+        inverted: false,
+        inflectionLabel: "HIP HINGE (BOTTOM)",
+        lockoutLabel: "STANDING LOCKOUT",
+        asc: "DRIVING HIPS FORWARD",
+        desc: "HINGING HIPS BACK",
+      },
+      lunge: {
+        bottom: 98,
+        lockout: 148,
+        inverted: false,
+        inflectionLabel: "DEEP LUNGE",
+        lockoutLabel: "STANDING RETURN",
+        asc: "PUSHING UP",
+        desc: "STEPPING DOWN",
+      },
+    };
 
-      case "bicep_curl":
-        if (smoothedAngle <= 65) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "PEAK BICEP CURL";
-        } else if (smoothedAngle >= 135) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "FULL EXTENSION";
-        } else {
-          movementStateText = currentStage === "inflection" ? "LOWERING WEIGHT" : "CURLING UP";
-        }
-        break;
+    const cfg = configMap[type] || {
+      bottom: 80,
+      lockout: 140,
+      inverted: false,
+      inflectionLabel: "PEAK CONTRACTION",
+      lockoutLabel: "START POSITION",
+      asc: "ASCENDING",
+      desc: "DESCENDING",
+    };
 
-      case "pushup":
-        if (smoothedAngle <= 95) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "CHEST AT FLOOR";
-        } else if (smoothedAngle >= 150) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "PLANK LOCKOUT";
-        } else {
-          movementStateText = currentStage === "inflection" ? "PRESSING UP" : "DESCENDING";
-        }
-        break;
+    if (!cfg.inverted) {
+      // Standard Exercises: Bottom depth = small angle, Top Lockout = large angle
+      const meetsInflection = smoothedAngle <= (cfg.bottom - buffer);
+      const meetsLockout = smoothedAngle >= (cfg.lockout + buffer);
 
-      case "shoulder_press":
-        if (smoothedAngle >= 150) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "OVERHEAD LOCKOUT";
-        } else if (smoothedAngle <= 100) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "RACK POSITION";
+      if (meetsInflection) {
+        if (runtimeRef.current.fsmCandidateStage === "inflection") {
+          runtimeRef.current.fsmCandidateCount += 1;
         } else {
-          movementStateText = currentStage === "inflection" ? "LOWERING BAR" : "PRESSING UP";
+          runtimeRef.current.fsmCandidateStage = "inflection";
+          runtimeRef.current.fsmCandidateCount = 1;
         }
-        break;
 
-      case "lateral_raise":
-        if (smoothedAngle >= 75) {
+        if (runtimeRef.current.fsmCandidateCount >= requiredFrames) {
           runtimeRef.current.stage = "inflection";
-          movementStateText = "PEAK LATERAL RAISE";
-        } else if (smoothedAngle <= 35) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "ARMS AT SIDES";
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        }
+        movementStateText = cfg.inflectionLabel;
+      } else if (meetsLockout) {
+        if (runtimeRef.current.fsmCandidateStage === "start") {
+          runtimeRef.current.fsmCandidateCount += 1;
         } else {
-          movementStateText = currentStage === "inflection" ? "LOWERING ARMS" : "RAISING LATERAL";
+          runtimeRef.current.fsmCandidateStage = "start";
+          runtimeRef.current.fsmCandidateCount = 1;
         }
-        break;
 
-      case "deadlift":
-        if (smoothedAngle <= 105) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "HIP HINGE (BOTTOM)";
-        } else if (smoothedAngle >= 155) {
+        if (runtimeRef.current.fsmCandidateCount >= requiredFrames) {
           if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
             repTriggered = true;
             runtimeRef.current.lastRepTime = now;
           }
           runtimeRef.current.stage = "start";
-          movementStateText = "STANDING LOCKOUT";
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        }
+        movementStateText = cfg.lockoutLabel;
+      } else {
+        // In intermediate range: reset candidate count if we move too far away
+        if (runtimeRef.current.fsmCandidateStage === "inflection" && smoothedAngle > (cfg.bottom + buffer)) {
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        } else if (runtimeRef.current.fsmCandidateStage === "start" && smoothedAngle < (cfg.lockout - buffer)) {
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        }
+        movementStateText = currentStage === "inflection" ? cfg.asc : cfg.desc;
+      }
+    } else {
+      // Inverted Exercises (Shoulder Press / Lateral Raise): Peak contraction = large angle, Rack/Rest = small angle
+      const meetsInflection = smoothedAngle >= (cfg.lockout + buffer);
+      const meetsLockout = smoothedAngle <= (cfg.bottom - buffer);
+
+      if (meetsInflection) {
+        if (runtimeRef.current.fsmCandidateStage === "inflection") {
+          runtimeRef.current.fsmCandidateCount += 1;
         } else {
-          movementStateText = currentStage === "inflection" ? "DRIVING HIPS FORWARD" : "HINGING HIPS BACK";
+          runtimeRef.current.fsmCandidateStage = "inflection";
+          runtimeRef.current.fsmCandidateCount = 1;
         }
-        break;
 
-      case "lunge":
-        if (smoothedAngle <= 98) {
+        if (runtimeRef.current.fsmCandidateCount >= requiredFrames) {
           runtimeRef.current.stage = "inflection";
-          movementStateText = "DEEP LUNGE";
-        } else if (smoothedAngle >= 148) {
-          if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
-            repTriggered = true;
-            runtimeRef.current.lastRepTime = now;
-          }
-          runtimeRef.current.stage = "start";
-          movementStateText = "STANDING RETURN";
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        }
+        movementStateText = cfg.inflectionLabel;
+      } else if (meetsLockout) {
+        if (runtimeRef.current.fsmCandidateStage === "start") {
+          runtimeRef.current.fsmCandidateCount += 1;
         } else {
-          movementStateText = currentStage === "inflection" ? "PUSHING UP" : "STEPPING DOWN";
+          runtimeRef.current.fsmCandidateStage = "start";
+          runtimeRef.current.fsmCandidateCount = 1;
         }
-        break;
 
-      default:
-        if (smoothedAngle <= 80) {
-          runtimeRef.current.stage = "inflection";
-          movementStateText = "PEAK CONTRACTION";
-        } else if (smoothedAngle >= 140) {
+        if (runtimeRef.current.fsmCandidateCount >= requiredFrames) {
           if (currentStage === "inflection" && now - runtimeRef.current.lastRepTime > 450) {
             repTriggered = true;
             runtimeRef.current.lastRepTime = now;
           }
           runtimeRef.current.stage = "start";
-          movementStateText = "START POSITION";
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
         }
-        break;
+        movementStateText = cfg.lockoutLabel;
+      } else {
+        if (runtimeRef.current.fsmCandidateStage === "inflection" && smoothedAngle < (cfg.lockout - buffer)) {
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        } else if (runtimeRef.current.fsmCandidateStage === "start" && smoothedAngle > (cfg.bottom + buffer)) {
+          runtimeRef.current.fsmCandidateStage = null;
+          runtimeRef.current.fsmCandidateCount = 0;
+        }
+        movementStateText = currentStage === "inflection" ? cfg.asc : cfg.desc;
+      }
     }
 
     return { repTriggered, movementStateText };
   };
 
   // Real-time Canvas Rendering
-  const renderCanvasFrame = (image, landmarks, isFormGood) => {
+  const renderCanvasFrame = (image, landmarks, isFormGood, isConfidenceGood = true) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -557,8 +832,8 @@ export default function AIFormCoach() {
       [26, 28],
     ];
 
-    const strokeColor = isFormGood ? "#b7ff3c" : "#ff5c67";
-    const jointColor = isFormGood ? "#b7ff3c" : "#ff5c67";
+    const strokeColor = !isConfidenceGood ? "rgba(255, 189, 89, 0.7)" : isFormGood ? "#b7ff3c" : "#ff5c67";
+    const jointColor = !isConfidenceGood ? "rgba(255, 189, 89, 0.9)" : isFormGood ? "#b7ff3c" : "#ff5c67";
 
     ctx.lineWidth = 4;
     ctx.strokeStyle = strokeColor;
@@ -568,7 +843,7 @@ export default function AIFormCoach() {
     connections.forEach(([p1, p2]) => {
       const a = mirroredLm[p1];
       const b = mirroredLm[p2];
-      if (a && b && (a.visibility ?? 1) > 0.35 && (b.visibility ?? 1) > 0.35) {
+      if (a && b && (a.visibility ?? 1) >= 0.4 && (b.visibility ?? 1) >= 0.4) {
         ctx.beginPath();
         ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
         ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
@@ -581,7 +856,7 @@ export default function AIFormCoach() {
 
     [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].forEach((idx) => {
       const pt = mirroredLm[idx];
-      if (pt && (pt.visibility ?? 1) > 0.35) {
+      if (pt && (pt.visibility ?? 1) >= 0.4) {
         ctx.beginPath();
         ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 5, 0, Math.PI * 2);
         ctx.fillStyle = jointColor;
@@ -620,27 +895,68 @@ export default function AIFormCoach() {
           const lm = results.poseLandmarks;
 
           let isCurrentFormGood = true;
+          let isFrameConfidenceGood = true;
+          const exType = runtimeRef.current.exerciseType;
 
-          // Process Frame if Workout is Active
+          // 1. Positioning / Calibration Check (Always runs when camera is active)
+          const posCheck = checkPositioningReadiness(lm, exType);
+          setPositioningFeedback(posCheck);
+
+          if (posCheck.ready) {
+            runtimeRef.current.positioningStableFrames = Math.min(
+              POSITIONING_STABILITY_FRAMES,
+              runtimeRef.current.positioningStableFrames + 1
+            );
+          } else {
+            runtimeRef.current.positioningStableFrames = Math.max(
+              0,
+              runtimeRef.current.positioningStableFrames - 2
+            );
+          }
+
+          const pct = Math.round((runtimeRef.current.positioningStableFrames / POSITIONING_STABILITY_FRAMES) * 100);
+          setPositioningLockPercent(pct);
+          setIsPositionLocked(pct >= 100);
+
+          // 2. Process Active Workout Tracking
           if (lm && runtimeRef.current.isWorkoutActive) {
-            const exType = runtimeRef.current.exerciseType;
-            const { angle, secondary } = getBiomechanicalAngle(lm, exType);
+            const { angle, secondary, isConfidenceGood } = getBiomechanicalAngle(lm, exType);
+            isFrameConfidenceGood = isConfidenceGood;
+
+            if (!isConfidenceGood) {
+              runtimeRef.current.consecutiveLowConfidenceFrames += 1;
+              if (runtimeRef.current.consecutiveLowConfidenceFrames > 3) {
+                setIsTrackingConfidenceLow(true);
+              }
+            } else {
+              runtimeRef.current.consecutiveLowConfidenceFrames = 0;
+              setIsTrackingConfidenceLow(false);
+            }
 
             if (angle !== null) {
+              // Raw Angle Display
               setCurrentRawAngle(Math.round(angle));
               if (secondary !== null) setSecondaryAngle(Math.round(secondary));
 
-              // Exponential smoothing
-              let smoothed = runtimeRef.current.smoothAngle;
-              if (smoothed === null) smoothed = angle;
-              else smoothed += 0.35 * (angle - smoothed);
+              // Exponential Moving Average (EMA) Angle Filtering
+              const smoothed = applyAngleEMA(angle, runtimeRef.current.smoothAngle, EMA_ALPHA);
               runtimeRef.current.smoothAngle = smoothed;
 
-              // Check Form Flaws
+              if (secondary !== null) {
+                runtimeRef.current.smoothSecondaryAngle = applyAngleEMA(
+                  secondary,
+                  runtimeRef.current.smoothSecondaryAngle,
+                  EMA_ALPHA
+                );
+              }
+
+              // Check Biomechanical Form Flaws
               const detectedFlaws = checkBiomechanicalFlaws(lm, exType);
               isCurrentFormGood = detectedFlaws.length === 0;
 
-              if (isCurrentFormGood) {
+              if (!isConfidenceGood) {
+                setLiveFormStatus({ text: "⚠️ Low Tracking Confidence (Reposition)", isGood: false });
+              } else if (isCurrentFormGood) {
                 setLiveFormStatus({ text: "✓ Perfect Form", isGood: true });
               } else {
                 setLiveFormStatus({ text: detectedFlaws[0].msg, isGood: false });
@@ -656,7 +972,7 @@ export default function AIFormCoach() {
                 });
               }
 
-              // Evaluate Rep
+              // Evaluate Repetition with Hysteresis & Debounce Filtered FSM
               const { repTriggered, movementStateText } = evaluateRep(smoothed, exType);
               setMovementPhase(movementStateText);
 
@@ -694,7 +1010,7 @@ export default function AIFormCoach() {
             runtimeRef.current.prevLandmarks = lm.map((l) => ({ ...l }));
           }
 
-          renderCanvasFrame(results.image, lm, isCurrentFormGood);
+          renderCanvasFrame(results.image, lm, isCurrentFormGood, isFrameConfidenceGood);
         });
 
         poseInstanceRef.current = pose;
@@ -1064,9 +1380,24 @@ export default function AIFormCoach() {
                       Ready to Track <span className="text-green">{exerciseInput}</span>
                     </h3>
                     <p className="text-xs text-muted max-w-md mt-1.5 leading-relaxed">
-                      Position your device so your full body is visible in frame. Click <strong>Start Workout</strong> below to activate real-time biomechanical posture analysis and rep counting.
+                      Position your device according to the exercise requirements. Click <strong>Start Camera & Calibration</strong> below to begin automated posture alignment and real-time biomechanical rep tracking.
                     </p>
                   </div>
+
+                  {/* Exercise-Specific Orientation Hint */}
+                  <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] max-w-md w-full text-left flex items-start gap-3">
+                    <span className="text-lg">{positioningFeedback.icon}</span>
+                    <div className="flex-1">
+                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                        <span>Recommended Setup:</span>
+                        <span className="text-green">{positioningFeedback.recommendedView}</span>
+                      </div>
+                      <p className="text-[11px] text-muted mt-0.5 leading-normal">
+                        {positioningFeedback.cue}
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-2.5 mt-2">
                     <button
                       type="button"
@@ -1074,7 +1405,7 @@ export default function AIFormCoach() {
                       onClick={handleStartWorkout}
                     >
                       <Play size={14} />
-                      <span>Start Workout</span>
+                      <span>Start Camera & Calibration</span>
                     </button>
                     <button
                       type="button"
@@ -1084,6 +1415,79 @@ export default function AIFormCoach() {
                       {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                       <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Pre-Workout Positioning & Landmark Calibration Overlay (When Camera is Running & Workout not yet active) */}
+              {isCameraRunning && !isWorkoutActive && (
+                <div className="aifc-positioning-overlay">
+                  <div className="aifc-positioning-card">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl">{positioningFeedback.icon}</span>
+                        <div>
+                          <div className="text-xs font-bold text-white uppercase tracking-wider">
+                            Camera Positioning Setup
+                          </div>
+                          <div className="text-[11px] text-green font-semibold">
+                            {positioningFeedback.recommendedView}
+                          </div>
+                        </div>
+                      </div>
+                      <div className={`aifc-lock-badge ${isPositionLocked ? "locked" : ""}`}>
+                        {isPositionLocked ? (
+                          <>
+                            <CheckCircle2 size={13} className="text-green" />
+                            <span>POSITION LOCKED</span>
+                          </>
+                        ) : (
+                          <>
+                            <Activity size={13} className="text-yellow animate-pulse" />
+                            <span>CALIBRATING ({positioningLockPercent}%)</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-secondary mt-2 leading-relaxed">
+                      {positioningFeedback.cue}
+                    </p>
+
+                    {positioningFeedback.missing && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-yellow font-medium mt-1">
+                        <AlertTriangle size={12} className="shrink-0" />
+                        <span>{positioningFeedback.missing}</span>
+                      </div>
+                    )}
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-white/10 rounded-full h-1.5 mt-2.5 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-200 ${
+                          isPositionLocked ? "bg-green" : "bg-yellow"
+                        }`}
+                        style={{ width: `${positioningLockPercent}%` }}
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-white/[0.08]">
+                      <span className="text-[10px] text-muted">
+                        {isPositionLocked
+                          ? "✓ Required landmarks verified with high confidence (>0.65)"
+                          : "Hold position steady to unlock rep counter"}
+                      </span>
+                      <button
+                        type="button"
+                        className={`aifc-btn py-1.5 px-4 text-xs font-bold ${
+                          isPositionLocked ? "aifc-btn-primary" : "aifc-btn-outline opacity-90"
+                        }`}
+                        onClick={handleStartWorkout}
+                      >
+                        <Play size={13} />
+                        <span>{isPositionLocked ? "Start Tracking Set" : "Start Tracking"}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1102,8 +1506,16 @@ export default function AIFormCoach() {
               )}
 
               {/* Live HUD Overlays */}
-              {isCameraRunning && (
-                <div className="aifc-hud">
+              {isCameraRunning && isWorkoutActive && (
+                <div className={`aifc-hud ${isTrackingConfidenceLow ? "dimmed-hud" : ""}`}>
+                  {/* Low Confidence Warning Pill */}
+                  {isTrackingConfidenceLow && (
+                    <div className="aifc-confidence-warning">
+                      <AlertTriangle size={13} className="text-yellow animate-pulse" />
+                      <span>Low Tracking Confidence (Visibility &lt; 0.65) • Step back / adjust lighting</span>
+                    </div>
+                  )}
+
                   {/* Top Bar HUD */}
                   <div className="aifc-hud-top">
                     {/* Big Glowing Rep Counter */}
@@ -1169,7 +1581,7 @@ export default function AIFormCoach() {
                   {!isWorkoutActive ? (
                     <button className="aifc-btn aifc-btn-primary py-2 px-5 text-xs" onClick={handleStartWorkout}>
                       <Play size={14} />
-                      <span>{isCameraRunning ? "Resume Workout" : "Start Workout"}</span>
+                      <span>{isPositionLocked ? "Start Tracking Set" : "Start Tracking"}</span>
                     </button>
                   ) : (
                     <button className="aifc-btn aifc-btn-danger py-2 px-5 text-xs" onClick={handleStopWorkout}>
@@ -1207,9 +1619,18 @@ export default function AIFormCoach() {
             {/* Viewport Control Buttons */}
             <div className="aifc-controls-row">
               {!isWorkoutActive ? (
-                <button className="aifc-btn aifc-btn-primary" onClick={handleStartWorkout}>
+                <button
+                  className={`aifc-btn ${isPositionLocked ? "aifc-btn-primary" : "aifc-btn-primary"}`}
+                  onClick={handleStartWorkout}
+                >
                   <Play size={16} />
-                  <span>{isCameraRunning ? "Resume Workout" : "Start Workout"}</span>
+                  <span>
+                    {isCameraRunning
+                      ? isPositionLocked
+                        ? "Start Tracking Set (Ready)"
+                        : "Start Tracking Set"
+                      : "Start Camera & Calibration"}
+                  </span>
                 </button>
               ) : (
                 <button className="aifc-btn aifc-btn-danger" onClick={handleStopWorkout}>
