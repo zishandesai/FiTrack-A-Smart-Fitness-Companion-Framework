@@ -38,7 +38,7 @@ export const chatWithNutriCoach = async ({ message, history = [], userMetrics = 
       const tools = [{ functionDeclarations: fitnessToolDeclarations }];
 
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [
           ...history.map((h) => ({
             role: h.role === "user" ? "user" : "model",
@@ -63,7 +63,7 @@ export const chatWithNutriCoach = async ({ message, history = [], userMetrics = 
 
         // Feed tool result back to Gemini for grounded synthesis
         const toolFollowUp = await client.models.generateContent({
-          model: "gemini-2.5-flash",
+          model: "gemini-3.8-flash",
           contents: [
             ...history.map((h) => ({
               role: h.role === "user" ? "user" : "model",
@@ -92,7 +92,7 @@ export const chatWithNutriCoach = async ({ message, history = [], userMetrics = 
           reply: toolFollowUp.text || "Here is your calculated fitness plan based on your metrics.",
           toolUsed: call.name,
           toolData: toolResult,
-          source: "gemini-2.5-flash-tools",
+          source: "gemini-3.8-flash-tools",
         };
       }
 
@@ -100,7 +100,7 @@ export const chatWithNutriCoach = async ({ message, history = [], userMetrics = 
         reply: response.text,
         toolUsed: null,
         toolData: null,
-        source: "gemini-2.5-flash",
+        source: "gemini-3.8-flash",
       };
     } catch (err) {
       console.warn("[Gemini API Warning] Live call failed, falling back to local deterministic engine:", err.message);
@@ -173,7 +173,7 @@ You MUST call the "evaluateRepetitionAndForm" tool with your analysis.`;
       const tools = [{ functionDeclarations: fitnessToolDeclarations }];
 
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [
           {
             role: "user",
@@ -224,7 +224,7 @@ You MUST call the "evaluateRepetitionAndForm" tool with your analysis.`;
           emergencyStop: isStop,
           emergencyStopReason: toolResult.emergencyStopReason || "",
           coachingCue: toolResult.coachingCue || (repIncrement > 0 ? `✓ Rep counted for ${exercise}!` : "Keep core stabilized."),
-          source: "gemini-2.5-flash-tools",
+          source: "gemini-3.8-flash-tools",
         };
       }
 
@@ -295,7 +295,7 @@ You MUST call the "evaluateRepetitionAndForm" tool with your analysis.`;
         emergencyStop,
         emergencyStopReason,
         coachingCue,
-        source: "gemini-2.5-flash-vision",
+        source: "gemini-3.8-flash-vision",
       };
     } catch (err) {
       console.warn("[Gemini Vision Warning] Vision analysis fallback:", err.message);
@@ -382,7 +382,7 @@ Return ONLY valid JSON:
 }`;
 
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [{ role: "user", parts: [{ text: prompt }] }],
       });
 
@@ -402,7 +402,7 @@ Return ONLY valid JSON:
           recommendations: (Array.isArray(parsed.cuesForNextSet) ? parsed.cuesForNextSet : detailedCues).join(" • "),
           trainerDispatchNote: parsed.trainerDispatchNote || `Coach ${resolvedTrainer}, athlete completed ${reps} clean reps of ${exercise} with ${formScore}% form precision.`,
           trainerNote: parsed.trainerDispatchNote || `Coach ${resolvedTrainer}, athlete completed ${reps} clean reps of ${exercise} with ${formScore}% form precision.`,
-          source: "gemini-2.5-flash",
+          source: "gemini-3.8-flash",
         };
       }
     } catch (err) {
@@ -601,7 +601,7 @@ Conclude with a structured nutrition box in this exact format:
 `;
 
       const response = await client.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: [
           {
             role: "user",
@@ -630,7 +630,7 @@ Conclude with a structured nutrition box in this exact format:
         success: true,
         reply: responseText,
         foodData,
-        source: "gemini-2.5-flash-food-vision",
+        source: "gemini-3.8-flash-food-vision",
       };
     } catch (err) {
       console.warn("[Gemini Food Vision Warning] Vision call error, using deterministic nutrition engine:", err.message);
