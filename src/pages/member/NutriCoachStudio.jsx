@@ -23,15 +23,11 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../../components/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
-import { chatNutriCoach, getGeminiApiKey, setGeminiApiKey } from "../../services/aiService";
+import { chatNutriCoach } from "../../services/aiService";
 
 export default function NutriCoachStudio() {
   const { user } = useAuth();
   const [copiedId, setCopiedId] = useState(null);
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [currentKey, setCurrentKey] = useState(getGeminiApiKey());
-  const [inputKey, setInputKey] = useState(getGeminiApiKey());
-  const [keySavedMsg, setKeySavedMsg] = useState("");
 
   const [messages, setMessages] = useState([
     {
@@ -51,17 +47,6 @@ export default function NutriCoachStudio() {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
-
-  const handleSaveKey = (e) => {
-    e?.preventDefault();
-    setGeminiApiKey(inputKey);
-    setCurrentKey(getGeminiApiKey());
-    setKeySavedMsg("API Key saved successfully! Real-time responses are now active.");
-    setTimeout(() => {
-      setKeySavedMsg("");
-      setShowKeyModal(false);
-    }, 1500);
-  };
 
   const handleImageFile = (file) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -274,7 +259,7 @@ export default function NutriCoachStudio() {
         {/* Full-Page Studio Layout */}
         <div className="ai-studio-container mode-page">
           {/* Top Bar Status */}
-          <div className="ai-studio-header flex items-center justify-between flex-wrap gap-3">
+          <div className="ai-studio-header">
             <div className="flex items-center gap-3">
               <div className="ai-brand-badge">
                 <Brain size={22} className="text-green" />
@@ -295,23 +280,6 @@ export default function NutriCoachStudio() {
                   Full Athlete Biometrics Telemetry & Sports Science Computational Engines
                 </p>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowKeyModal(true)}
-                className="btn btn-sm btn-outline flex items-center gap-1.5"
-                style={{
-                  borderColor: currentKey ? "rgba(74, 222, 128, 0.4)" : "rgba(239, 68, 68, 0.4)",
-                  color: currentKey ? "var(--green)" : "#ef4444",
-                  fontSize: "12px",
-                  padding: "6px 12px",
-                }}
-              >
-                <Sparkles size={14} />
-                {currentKey ? "Gemini Key: Active" : "Set Gemini Key"}
-              </button>
             </div>
           </div>
 
@@ -823,91 +791,6 @@ export default function NutriCoachStudio() {
             </main>
           </div>
         </div>
-
-        {/* GEMINI API KEY MODAL */}
-        {showKeyModal && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowKeyModal(false)}
-          >
-            <div
-              className="bg-card border border-border rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4"
-              onClick={(e) => e.stopPropagation()}
-              style={{ background: "#111827", borderColor: "#1f2937" }}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="text-green" size={20} />
-                  <h3 className="text-lg font-bold text-white">Google Gemini API Key</h3>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowKeyModal(false)}
-                  className="text-muted hover:text-white p-1"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <p className="text-xs text-secondary leading-relaxed">
-                Connect your Gemini API Key for real-time sports science responses, live multimodal food image analysis, and dynamic workout calculations.
-              </p>
-
-              <form onSubmit={handleSaveKey} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted mb-1.5">
-                    Gemini API Key
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Enter your Gemini API key (AQ... or AIzaSy...)"
-                    value={inputKey}
-                    onChange={(e) => setInputKey(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-lg bg-surface border border-border text-white text-sm focus:outline-none focus:border-green"
-                    style={{ background: "#0b0f17", borderColor: "#374151" }}
-                  />
-                  <div className="flex items-center justify-between mt-1.5">
-                    <span className="text-[11px] text-muted">
-                      Stored securely in your local browser session.
-                    </span>
-                    <a
-                      href="https://aistudio.google.com/app/apikey"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[11px] text-green hover:underline"
-                    >
-                      Get Free Key &rarr;
-                    </a>
-                  </div>
-                </div>
-
-                {keySavedMsg && (
-                  <div className="p-2.5 rounded-lg bg-green/10 border border-green/30 text-green text-xs font-medium flex items-center gap-2">
-                    <CheckCircle2 size={15} />
-                    {keySavedMsg}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowKeyModal(false)}
-                    className="btn btn-sm btn-ghost text-xs"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-sm btn-primary text-xs flex items-center gap-1.5"
-                  >
-                    <Check size={14} />
-                    Save & Activate
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );
