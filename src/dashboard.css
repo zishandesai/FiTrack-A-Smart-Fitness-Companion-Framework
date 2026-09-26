@@ -5746,5 +5746,263 @@
   opacity: 0.85;
 }
 
+/* ================================================================
+   MOBILE RESPONSIVENESS & TOUCH ENHANCEMENTS
+================================================================ */
+
+.mobile-sidebar-close {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .dash-container {
+    overflow-x: hidden;
+  }
+
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    height: 100dvh !important;
+    width: min(290px, 84vw) !important;
+    transform: translateX(-100%) !important;
+    transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+    z-index: 9999 !important;
+    box-shadow: 10px 0 40px rgba(0, 0, 0, 0.85) !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .desktop-only-btn {
+    display: none !important;
+  }
+
+  .mobile-sidebar-close {
+    display: grid !important;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+
+  .dash-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 9990;
+    animation: fadeIn 200ms ease;
+  }
+
+  .dash-mobile-toggle {
+    display: grid !important;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .dash-topbar {
+    padding: 12px 16px;
+    gap: 10px;
+  }
+
+  .dash-page-title {
+    font-size: 18px;
+  }
+
+  .dash-page-subtitle {
+    font-size: 11px;
+  }
+
+  .dash-content-body {
+    padding: 16px 14px 80px;
+  }
+
+  .dash-grid-4,
+  .dash-grid-3,
+  .dash-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 600px) {
+  .dash-user-badge .dash-user-email {
+    display: none;
+  }
+
+  .dash-quick-home {
+    display: none;
+  }
+
+  .dash-portal-tag {
+    font-size: 9px;
+    padding: 3px 7px;
+  }
+
+  .dash-topbar-logout {
+    padding: 5px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .floating-ai-launcher-btn {
+    bottom: 16px;
+    right: 14px;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Table Horizontal Scrolling on Mobile */
+  .table-responsive,
+  .overflow-x-auto {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    display: block;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 12px 14px;
+    white-space: nowrap;
+  }
+}
+
+/* AI Form Coach Mobile Optimizations */
+@media (max-width: 768px) {
+  .aifc-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .aifc-viewport-container {
+    aspect-ratio: 4 / 3;
+    min-height: 250px;
+    max-height: 48vh;
+  }
+
+  .aifc-topbar-strip {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .aifc-rep-badge {
+    padding: 6px 12px;
+    border-radius: 10px;
+  }
+
+  .aifc-rep-num {
+    font-size: 32px;
+  }
+
+  .aifc-rep-label {
+    font-size: 8px;
+  }
+
+  .aifc-form-badge {
+    min-width: 110px;
+    padding: 6px 10px;
+  }
+
+  .aifc-form-msg {
+    font-size: 11px;
+  }
+
+  .aifc-hud-bottom {
+    bottom: 8px;
+    left: 8px;
+    right: 8px;
+    gap: 6px;
+  }
+
+  .aifc-angle-chip {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .aifc-phase-chip {
+    padding: 4px 8px;
+    font-size: 10px;
+  }
+
+  .aifc-timer-chip {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  .aifc-controls-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .aifc-controls-row .aifc-btn {
+    width: 100%;
+    min-height: var(--btn-height-lg);
+  }
+
+  .aifc-positioning-card {
+    padding: 12px 14px;
+  }
+
+  .aifc-positioning-card p {
+    font-size: 11px;
+  }
+}
+
+/* AI Chat Studio Mobile Fullscreen Overlay */
+@media (max-width: 768px) {
+  .ai-studio-container.mode-studio,
+  .ai-studio-container.mode-compact,
+  .ai-studio-container {
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    border: none !important;
+  }
+
+  .ai-studio-overlay {
+    padding: 0 !important;
+  }
+
+  .ai-studio-header {
+    padding: 10px 14px;
+  }
+
+  .ai-studio-title {
+    font-size: 14px;
+  }
+
+  .ai-studio-sub {
+    display: none;
+  }
+
+  .ai-langchain-chip,
+  .ai-active-pill {
+    font-size: 9px;
+    padding: 2px 6px;
+  }
+
+  .ai-chat-input-bar {
+    padding: 10px 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
 
 

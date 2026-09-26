@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ShieldCheck, Dumbbell, User, Brain } from "lucide-react";
+import { Menu, Brain } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "./Sidebar";
 import AIChatModal from "./AIChatModal";
@@ -9,10 +9,23 @@ export default function DashboardLayout({ children, title, subtitle }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [aiInitialPrompt, setAiInitialPrompt] = useState("");
 
   const role = user?.role || "member";
+
+  // Lock body scroll when mobile menu is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   useEffect(() => {
     const handleOpenAIChat = (e) => {
@@ -40,15 +53,40 @@ export default function DashboardLayout({ children, title, subtitle }) {
 
   return (
     <div className={`dash-container ${collapsed ? "sidebar-collapsed" : ""}`}>
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="dash-backdrop"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Close sidebar menu"
+        />
+      )}
+
       {/* Sidebar with User Component */}
-      <Sidebar role={role} collapsed={collapsed} setCollapsed={setCollapsed} />
+      <Sidebar
+        role={role}
+        collapsed={collapsed}
+        setCollapsed={setCollapsed}
+        mobileOpen={mobileOpen}
+        setMobileOpen={setMobileOpen}
+      />
 
       {/* Main Content Area */}
       <main className="dash-main">
         {/* Topbar */}
         <header className="dash-topbar">
           <div className="dash-topbar-left">
-            <div>
+            {/* Mobile Hamburger Toggle Button */}
+            <button
+              className="dash-mobile-toggle"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open sidebar navigation"
+              type="button"
+            >
+              <Menu size={20} />
+            </button>
+
+            <div className="dash-title-wrap">
               <h1 className="dash-page-title">{title}</h1>
               {subtitle && <p className="dash-page-subtitle">{subtitle}</p>}
             </div>
@@ -98,7 +136,7 @@ export default function DashboardLayout({ children, title, subtitle }) {
           <div className="floating-ai-icon-pulse">
             <Brain size={18} />
           </div>
-          <span className="font-semibold">NutriCoach AI</span>
+          <span className="font-semibold floating-ai-label">NutriCoach AI</span>
           <span className="floating-ai-sparkle">✨</span>
         </button>
 
@@ -115,3 +153,4 @@ export default function DashboardLayout({ children, title, subtitle }) {
     </div>
   );
 }
+
