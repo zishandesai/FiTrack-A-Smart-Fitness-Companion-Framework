@@ -6004,5 +6004,155 @@
   }
 }
 
+/* ================================================================
+   DASHBOARD PAGES DEEP MOBILE ALIGNMENT (CARDS, BANNERS, EXERCISES)
+================================================================ */
+@media (max-width: 768px) {
+  .membership-banner,
+  .membership-hero-banner {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    padding: 16px 14px !important;
+    gap: 12px !important;
+  }
+
+  .membership-banner-right {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .membership-banner-right .btn,
+  .membership-banner-right .ask-ai-trigger-btn {
+    flex: 1 1 auto !important;
+    justify-content: center !important;
+  }
+
+  .dash-card {
+    padding: 16px 14px !important;
+    border-radius: 14px !important;
+  }
+
+  .dash-card-header {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Exercise list item mobile stacking */
+  .exercise-item {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+  }
+
+  .exercise-details {
+    flex: 1 1 200px !important;
+    min-width: 0 !important;
+  }
+
+  .exercise-action {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding-top: 8px !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+  }
+
+  /* Three.js Biomechanics Viewport */
+  .three-search-bar-wrap {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+
+  .three-search-bar-wrap .ask-ai-trigger-btn {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .three-viewport-wrap {
+    height: 300px !important;
+    min-height: 260px !important;
+  }
+
+  .three-canvas-target {
+    height: 300px !important;
+  }
+
+  .three-muscle-pills {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 6px !important;
+    scrollbar-width: thin !important;
+  }
+
+  .three-muscle-info-card {
+    padding: 14px 12px !important;
+  }
+
+  /* Quick action cards & grids */
+  .dash-quick-card {
+    padding: 14px 12px !important;
+  }
+
+  .client-card-top,
+  .trainer-card-top {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+
+  .trainer-meta-strip {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .request-card-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .req-action-buttons {
+    width: 100% !important;
+    display: flex !important;
+  }
+
+  .req-action-buttons .btn {
+    flex: 1 1 auto !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .dash-grid-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .stat-card {
+    padding: 12px 10px !important;
+  }
+
+  .stat-card .stat-value {
+    font-size: 20px !important;
+  }
+
+  .stat-card .stat-label {
+    font-size: 9px !important;
+  }
+
+  .timer-digits {
+    font-size: 40px !important;
+  }
+
+  .timer-presets {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+
 
 
