@@ -14,13 +14,11 @@ STRICT DOMAIN GUARDRAILS:
 3. When the user asks for calorie counts, TDEE, macro calculations, meal plans, or exercise form breakdowns, invoke your available tools immediately to provide exact, scientific numbers.
 4. Tone: Professional, encouraging, evidence-based, concise, and motivational.`;
 
-let aiClient = null;
-
 const getAIClient = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey.trim() === "") return null;
   if (!aiClient) {
-    aiClient = new GoogleGenAI({ apiKey });
+    aiClient = new GoogleGenAI({ apiKey: apiKey.trim() });
   }
   return aiClient;
 };

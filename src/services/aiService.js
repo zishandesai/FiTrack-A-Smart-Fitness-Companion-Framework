@@ -8,11 +8,31 @@ STRICT DOMAIN GUIDELINES:
 2. If the user asks about non-fitness topics, politely redirect them back to sports nutrition and workout science.
 3. Tone: Evidence-based, motivating, concise, and professional. Use markdown formatting with bold headers and bullet points.`;
 
+export const getGeminiApiKey = () => {
+  if (typeof window !== "undefined") {
+    const local = localStorage.getItem("fittrack_gemini_api_key");
+    if (local && local.trim() !== "") return local.trim();
+  }
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (envKey && envKey.trim() !== "") return envKey.trim();
+  return "";
+};
+
+export const setGeminiApiKey = (key) => {
+  if (typeof window !== "undefined") {
+    if (key && key.trim() !== "") {
+      localStorage.setItem("fittrack_gemini_api_key", key.trim());
+    } else {
+      localStorage.removeItem("fittrack_gemini_api_key");
+    }
+  }
+};
+
 /**
  * Direct Live Gemini API call from frontend (Runs independently of Express backend)
  */
 const callLiveGeminiAPI = async (message, history = [], clientContext = {}, imageBase64 = null) => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey || apiKey.trim() === "") return null;
 
   const name = clientContext?.name || "Athlete";
