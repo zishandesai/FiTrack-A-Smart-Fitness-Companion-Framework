@@ -54,76 +54,58 @@ export function AuthProvider({ children }) {
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
-        // Clear any old dummy member or trainer account from previous mock sessions
-        const isDummy =
-          parsed.role !== "admin" &&
-          (parsed.email?.includes("fittrack.com") ||
-           parsed.email?.includes("example.com") ||
-           parsed.name?.includes("Marcus") ||
-           parsed.name?.includes("Amaan") ||
-           parsed.name?.includes("Rahul") ||
-           parsed.name?.includes("Alex") ||
-           parsed.name?.includes("Elena") ||
-           parsed.name?.includes("Tyler"));
-
-        if (isDummy) {
-          localStorage.removeItem("fittrack_user");
-          localStorage.removeItem("fittrack_token");
-          setUser(null);
-        } else {
-          // Sync trainer from members list if present
-          const members = getMembersList();
-          const currentMem = members.find(
-            (m) => m.email === parsed.email || m.name === parsed.name
-          );
-          if (currentMem?.trainerName) {
-            parsed.trainerName = currentMem.trainerName;
-            parsed.trainer = currentMem.trainerName;
-            parsed.trainerSpecialty = currentMem.trainerSpecialty || "Fitness Coach";
-            parsed.trainerId = currentMem.trainerId;
-          }
-
-          // Sanitize any lingering legacy dummy arrays
-          if (Array.isArray(parsed.weightHistory)) {
-            if (parsed.weightHistory.some((h) => h.name?.includes("Wks Ago") || h.name?.includes("Last Wk"))) {
-              parsed.weightHistory = parsed.weight ? [{ name: "Current", value: Number(parsed.weight) }] : [];
-            }
-          }
-          if (Array.isArray(parsed.formHistory)) {
-            parsed.formHistory = parsed.formHistory.filter(
-              (h) => h && h.isRealSession && h.value !== 89 && h.name !== "Today"
-            );
-          } else {
-            parsed.formHistory = [];
-          }
-          if (!parsed.formHistory || parsed.formHistory.length === 0) {
-            parsed.formHistory = [];
-            parsed.formScore = null;
-          }
-          if (parsed.formScore === 89 || parsed.formScore === 92 || parsed.formScore === 85) {
-            parsed.formScore = null;
-          }
-          if (parsed.attendance === 75) {
-            parsed.attendance = 0;
-          }
-
-          // Merge live progress metrics
-          const metrics = getMemberProgressMetrics(parsed.name || parsed.email, parsed);
-          if (metrics) {
-            parsed.workoutsCount = metrics.workoutsCount;
-            parsed.attendance = metrics.attendance;
-            parsed.formScore = metrics.formScore;
-            parsed.weeklyWorkouts = metrics.weeklyWorkouts;
-            parsed.formHistory = metrics.formHistory;
-            parsed.weightHistory = metrics.weightHistory;
-            parsed.targetWeight = metrics.targetWeight;
-          }
-
-          localStorage.setItem("fittrack_user", JSON.stringify(parsed));
-          setUser(parsed);
-          // Sync with backend asynchronously
-          refreshUserData();
+        // Sync trainer from members list if present
+        const members = getMembersList();
+        const currentMem = members.find(
+          (m) => m.email === parsed.email || m.name === parsed.name
+        );
+        if (currentMem?.trainerName) {
+          parsed.trainerName = currentMem.trainerName;
+          parsed.trainer = currentMem.trainerName;
+          parsed.trainerSpecialty = currentMem.trainerSpecialty || "Fitness Coach";
+          parsed.trainerId = currentMem.trainerId;
         }
+
+        // Sanitize any lingering legacy dummy arrays
+        if (Array.isArray(parsed.weightHistory)) {
+          if (parsed.weightHistory.some((h) => h.name?.includes("Wks Ago") || h.name?.includes("Last Wk"))) {
+            parsed.weightHistory = parsed.weight ? [{ name: "Current", value: Number(parsed.weight) }] : [];
+          }
+        }
+        if (Array.isArray(parsed.formHistory)) {
+          parsed.formHistory = parsed.formHistory.filter(
+            (h) => h && h.isRealSession && h.value !== 89 && h.name !== "Today"
+          );
+        } else {
+          parsed.formHistory = [];
+        }
+        if (!parsed.formHistory || parsed.formHistory.length === 0) {
+          parsed.formHistory = [];
+          parsed.formScore = null;
+        }
+        if (parsed.formScore === 89 || parsed.formScore === 92 || parsed.formScore === 85) {
+          parsed.formScore = null;
+        }
+        if (parsed.attendance === 75) {
+          parsed.attendance = 0;
+        }
+
+        // Merge live progress metrics
+        const metrics = getMemberProgressMetrics(parsed.name || parsed.email, parsed);
+        if (metrics) {
+          parsed.workoutsCount = metrics.workoutsCount;
+          parsed.attendance = metrics.attendance;
+          parsed.formScore = metrics.formScore;
+          parsed.weeklyWorkouts = metrics.weeklyWorkouts;
+          parsed.formHistory = metrics.formHistory;
+          parsed.weightHistory = metrics.weightHistory;
+          parsed.targetWeight = metrics.targetWeight;
+        }
+
+        localStorage.setItem("fittrack_user", JSON.stringify(parsed));
+        setUser(parsed);
+        // Sync with backend asynchronously
+        refreshUserData();
       } catch {
         localStorage.removeItem("fittrack_user");
       }
