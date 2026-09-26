@@ -1,5 +1,22 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { X, ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+import {
+  X,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
+  LayoutDashboard,
+  Brain,
+  Dumbbell,
+  Users,
+  MessageSquare,
+  FileText,
+  Sparkles,
+  TrendingUp,
+  User,
+  PlusCircle,
+  CalendarCheck,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 export default function Sidebar({
@@ -14,32 +31,32 @@ export default function Sidebar({
 
   const menus = {
     member: [
-      { icon: "▦", label: "Dashboard", path: "/member" },
-      { icon: "⚡", label: "NutriCoach AI", path: "/member/nutricoach" },
-      { icon: "◉", label: "My Workout", path: "/member/workout" },
-      { icon: "♟", label: "Find a Coach", path: "/member/coaches" },
-      { icon: "💬", label: "Coach Chat", path: "/member/chat" },
-      { icon: "📝", label: "Admin Requests", path: "/member/requests" },
-      { icon: "✦", label: "AI Form Coach", path: "/member/ai-coach" },
-      { icon: "↗", label: "Progress", path: "/member/progress" },
-      { icon: "◎", label: "Profile", path: "/member/profile" },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/member" },
+      { icon: Brain, label: "NutriCoach AI", path: "/member/nutricoach" },
+      { icon: Dumbbell, label: "My Workout", path: "/member/workout" },
+      { icon: Users, label: "Find a Coach", path: "/member/coaches" },
+      { icon: MessageSquare, label: "Coach Chat", path: "/member/chat" },
+      { icon: FileText, label: "Admin Requests", path: "/member/requests" },
+      { icon: Sparkles, label: "AI Form Coach", path: "/member/ai-coach" },
+      { icon: TrendingUp, label: "Progress", path: "/member/progress" },
+      { icon: User, label: "Profile", path: "/member/profile" },
     ],
 
     trainer: [
-      { icon: "▦", label: "Dashboard", path: "/trainer" },
-      { icon: "⚡", label: "NutriCoach AI", path: "/trainer/nutricoach" },
-      { icon: "♙", label: "Athletes Roster", path: "/trainer/members" },
-      { icon: "＋", label: "Assign Workout", path: "/trainer/workout" },
-      { icon: "💬", label: "Athlete Chat", path: "/trainer/chat" },
-      { icon: "📝", label: "Staff Requests", path: "/trainer/requests" },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/trainer" },
+      { icon: Brain, label: "NutriCoach AI", path: "/trainer/nutricoach" },
+      { icon: Users, label: "Athletes Roster", path: "/trainer/members" },
+      { icon: PlusCircle, label: "Assign Workout", path: "/trainer/workout" },
+      { icon: MessageSquare, label: "Athlete Chat", path: "/trainer/chat" },
+      { icon: FileText, label: "Staff Requests", path: "/trainer/requests" },
     ],
 
     admin: [
-      { icon: "▦", label: "Dashboard", path: "/admin" },
-      { icon: "♙", label: "Members", path: "/admin/members" },
-      { icon: "♟", label: "Trainers", path: "/admin/trainers" },
-      { icon: "◈", label: "Approval Desk", path: "/admin/memberships" },
-      { icon: "◷", label: "Attendance", path: "/admin/attendance" },
+      { icon: LayoutDashboard, label: "Dashboard", path: "/admin" },
+      { icon: Users, label: "Members", path: "/admin/members" },
+      { icon: ShieldCheck, label: "Trainers", path: "/admin/trainers" },
+      { icon: FileText, label: "Approval Desk", path: "/admin/memberships" },
+      { icon: CalendarCheck, label: "Attendance", path: "/admin/attendance" },
     ],
   };
 
@@ -106,20 +123,25 @@ export default function Sidebar({
       <div className="sidebar-menu">
         <p className="sidebar-label">{(!collapsed || mobileOpen) && "MENU"}</p>
 
-        {menus[role]?.map((item) => (
-          <NavLink
-            key={item.path}
-            to={item.path}
-            onClick={handleLinkClick}
-            className={({ isActive }) =>
-              `sidebar-link ${isActive ? "active" : ""}`
-            }
-          >
-            <span className="sidebar-icon">{item.icon}</span>
+        {menus[role]?.map((item) => {
+          const IconComponent = item.icon;
+          return (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={handleLinkClick}
+              className={({ isActive }) =>
+                `sidebar-link ${isActive ? "active" : ""}`
+              }
+            >
+              <span className="sidebar-icon">
+                <IconComponent size={17} />
+              </span>
 
-            {(!collapsed || mobileOpen) && <span>{item.label}</span>}
-          </NavLink>
-        ))}
+              {(!collapsed || mobileOpen) && <span>{item.label}</span>}
+            </NavLink>
+          );
+        })}
       </div>
 
       <div className="sidebar-bottom">

@@ -6409,6 +6409,446 @@
   }
 }
 
+/* ================================================================
+   PREMIER ATHLETIC GYM THEME: ATHLETE DASHBOARD & ACTION COMPONENTS
+================================================================ */
 
+.athlete-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
 
+/* Athlete Hero Card */
+.athlete-hero-card {
+  background: linear-gradient(135deg, rgba(20, 26, 22, 0.95), rgba(12, 16, 14, 0.98));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 22px 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
 
+.athlete-hero-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: var(--green);
+}
+
+.athlete-hero-card.pending::before {
+  background: var(--warning);
+}
+
+.athlete-hero-card.expired::before {
+  background: var(--danger);
+}
+
+.athlete-hero-left {
+  flex: 1 1 320px;
+}
+
+.athlete-status-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.athlete-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(183, 255, 60, 0.12);
+  color: var(--green);
+  border: 1px solid rgba(183, 255, 60, 0.3);
+}
+
+.athlete-status-badge .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.athlete-status-badge.pending {
+  background: rgba(255, 189, 89, 0.12);
+  color: var(--warning);
+  border-color: rgba(255, 189, 89, 0.3);
+}
+
+.athlete-status-badge.expired {
+  background: rgba(255, 92, 103, 0.12);
+  color: var(--danger);
+  border-color: rgba(255, 92, 103, 0.3);
+}
+
+.athlete-plan-pill {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  letter-spacing: 0.06em;
+}
+
+.athlete-hero-heading {
+  font-family: "Manrope", sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin: 4px 0;
+}
+
+.athlete-hero-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.athlete-hero-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Quick Actions Bar */
+.athlete-quick-actions-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.athlete-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: #fff;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+}
+
+.athlete-action-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(183, 255, 60, 0.3);
+  transform: translateY(-2px);
+  color: #fff;
+}
+
+.athlete-action-btn.highlight {
+  background: rgba(183, 255, 60, 0.06);
+  border-color: rgba(183, 255, 60, 0.25);
+}
+
+.action-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(183, 255, 60, 0.15);
+  color: var(--green);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.action-icon-wrap.vision {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.action-icon-wrap.nutrition {
+  background: rgba(168, 85, 247, 0.15);
+  color: #c084fc;
+}
+
+.action-icon-wrap.checkin {
+  background: rgba(251, 146, 60, 0.15);
+  color: #fb923c;
+}
+
+.action-icon-wrap.chat {
+  background: rgba(52, 211, 153, 0.15);
+  color: #34d399;
+}
+
+.action-text-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.action-text-wrap strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.action-text-wrap small {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Metrics Grid */
+.athlete-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  width: 100%;
+}
+
+/* Athlete Cards */
+.athlete-card {
+  background: rgba(18, 22, 19, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+}
+
+.athlete-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.athlete-card-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--green);
+  text-transform: uppercase;
+  display: block;
+}
+
+.athlete-card-title {
+  font-family: "Manrope", sans-serif;
+  font-size: 18px;
+  font-weight: 800;
+  color: #fff;
+  margin-top: 2px;
+}
+
+.athlete-card-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+.athlete-exercise-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.athlete-exercise-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.18s ease;
+  gap: 10px;
+}
+
+.athlete-exercise-item.completed {
+  background: rgba(183, 255, 60, 0.04);
+  border-color: rgba(183, 255, 60, 0.2);
+  opacity: 0.85;
+}
+
+.exercise-info-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.exercise-check-indicator {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.exercise-check-indicator .dot-hollow {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-muted);
+}
+
+.exercise-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.athlete-exercise-item.completed .exercise-name {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+.exercise-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap;
+}
+
+.exercise-badge.done {
+  background: rgba(183, 255, 60, 0.15);
+  color: var(--green);
+  border-color: rgba(183, 255, 60, 0.35);
+}
+
+/* Milestone Box */
+.athlete-milestone-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(183, 255, 60, 0.04);
+  border: 1px solid rgba(183, 255, 60, 0.15);
+}
+
+.milestone-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(183, 255, 60, 0.12);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.milestone-info {
+  flex: 1;
+}
+
+.milestone-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.milestone-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #b7ff3c, #38bdf8);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* AI Insight Card */
+.athlete-ai-insight-card {
+  background: linear-gradient(135deg, rgba(20, 25, 22, 0.9), rgba(12, 15, 13, 0.95));
+  border: 1px solid rgba(183, 255, 60, 0.2);
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+
+.ai-insight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ai-insight-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(183, 255, 60, 0.12);
+  border: 1px solid rgba(183, 255, 60, 0.3);
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  flex-shrink: 0;
+}
+
+/* Deep Mobile Alignment for Athlete Dashboard */
+@media (max-width: 768px) {
+  .athlete-quick-actions-bar {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .athlete-metrics-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px;
+  }
+
+  .athlete-hero-card {
+    padding: 16px 14px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .athlete-hero-right {
+    width: 100%;
+  }
+
+  .athlete-hero-right .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .athlete-card {
+    padding: 16px 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .athlete-quick-actions-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .athlete-hero-heading {
+    font-size: 17px;
+  }
+}

@@ -219,49 +219,20 @@ export default function Login() {
           </form>
 
           {/* Quick Credential Pre-fills for Teacher & College Demonstration */}
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "12px 14px",
-              borderRadius: "10px",
-              background: "rgba(255, 255, 255, 0.03)",
-              border: "1px solid rgba(255, 255, 255, 0.08)",
-              fontSize: "12px",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "8px",
-              }}
-            >
-              <span style={{ color: "#ffffff", fontWeight: "600" }}>
-                Official Accounts
-              </span>
-              <span style={{ color: "#b7ff3c", fontSize: "11px", fontWeight: "600" }}>
-                ● Live Database
-              </span>
+          <div className="auth-quick-accounts-card">
+            <div className="quick-accounts-header">
+              <span className="quick-accounts-title">Official Accounts</span>
+              <span className="quick-accounts-status">● Live Database</span>
             </div>
 
-            <p style={{ color: "#8a9e8d", fontSize: "11px", margin: "0 0 10px 0" }}>
-              Click an account to autofill credentials for testing:
+            <p className="quick-accounts-hint">
+              Tap any role to autofill credentials for testing:
             </p>
 
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <div className="quick-accounts-grid">
               <button
                 type="button"
-                style={{
-                  padding: "5px 10px",
-                  borderRadius: "6px",
-                  background: "rgba(255, 92, 103, 0.12)",
-                  border: "1px solid rgba(255, 92, 103, 0.3)",
-                  color: "#ff5c67",
-                  fontSize: "11px",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                }}
+                className="quick-account-chip admin"
                 onClick={() => {
                   setEmail("admin@fittrack.com");
                   setPassword("Admin@12345");
@@ -270,6 +241,32 @@ export default function Login() {
                 title="Fill Admin credentials"
               >
                 👑 Admin
+              </button>
+
+              <button
+                type="button"
+                className="quick-account-chip trainer"
+                onClick={() => {
+                  setEmail("trainer@fittrack.com");
+                  setPassword("Trainer@12345");
+                  setError("");
+                }}
+                title="Fill Trainer credentials"
+              >
+                🏋️ Trainer
+              </button>
+
+              <button
+                type="button"
+                className="quick-account-chip member"
+                onClick={() => {
+                  setEmail("member@fittrack.com");
+                  setPassword("Member@12345");
+                  setError("");
+                }}
+                title="Fill Member credentials"
+              >
+                ⚡ Member
               </button>
             </div>
           </div>
