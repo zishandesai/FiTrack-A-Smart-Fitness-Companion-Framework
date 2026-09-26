@@ -101,7 +101,7 @@ STRICT DOMAIN GUIDELINES:
           body: JSON.stringify({
             contents,
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-            generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+            generationConfig: { temperature: 0.4, maxOutputTokens: 8192 },
           }),
         });
 

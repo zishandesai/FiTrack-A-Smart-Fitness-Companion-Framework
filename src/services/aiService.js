@@ -1,66 +1,16 @@
 import api from "./api";
 
 export const chatNutriCoach = async (message, history = [], clientContext = {}, imageBase64 = null) => {
-  // 1. Send request to secure server backend / Vercel serverless function
   try {
     const response = await api.post("/ai/chat", { message, history, clientContext, imageBase64 });
-    if (response?.data && response.data.reply) return response.data;
+    if (response?.data && response.data.reply) {
+      return response.data;
+    }
+    throw new Error(response?.data?.message || "No response received from AI server");
   } catch (err) {
-    console.warn("[NutriCoach Client] Backend unavailable, using sports science fallback engine:", err.message);
+    console.error("[NutriCoach API Error]", err);
+    throw err;
   }
-
-  // 3. Deterministic Sports Science Engine Fallback
-  const text = (message || "").toLowerCase();
-  const name = clientContext?.name || "Athlete";
-  const goal = clientContext?.goal || "General Fitness";
-  const weight = Number(clientContext?.weight) || 70;
-  const height = Number(clientContext?.height) || 175;
-
-  if (imageBase64) {
-    return {
-      success: true,
-      reply: `### 🥗 Visual Food Nutrition Breakdown\nHello **${name}**! I analyzed your meal against your **${goal}** target.\n\n• **Identified Dish:** High-Protein Performance Meal\n• **Estimated Energy:** ~520 kcal\n• **Protein:** ~42g (Optimal MPS stimulus)\n• **Carbohydrates:** ~54g (Clean glycogen fuel)\n• **Fats:** ~12g (Essential fatty acids)\n• **Dietary Fiber:** ~6g\n• **Goal Alignment:** Optimal for ${goal}\n\n💡 **Coach Cue:** Hydrate with 500ml of water to assist nutrient partitioning!`,
-      foodData: {
-        dishName: "High-Protein Performance Meal",
-        calories: 520,
-        protein: 42,
-        carbs: 54,
-        fats: 12,
-        fiber: 6,
-        goalAlignment: "Optimal",
-      },
-      source: "fittrack-local-nutrition-engine",
-    };
-  }
-
-  if (text.includes("macro") || text.includes("tdee") || text.includes("calorie") || text.includes("protein")) {
-    const bmr = Math.round(10 * weight + 6.25 * height - 5 * 22 + 5);
-    const tdee = Math.round(bmr * 1.55);
-    const targetCal = goal.toLowerCase().includes("loss") ? tdee - 500 : goal.toLowerCase().includes("gain") ? tdee + 350 : tdee;
-    const proteinG = Math.round(weight * 2.0);
-    const fatsG = Math.round((targetCal * 0.25) / 9);
-    const carbsG = Math.round((targetCal - (proteinG * 4 + fatsG * 9)) / 4);
-
-    return {
-      success: true,
-      reply: `Here is your scientific biometric nutrition profile calculated for **${goal}**:\n\n• **Maintenance TDEE:** ${tdee} kcal/day\n• **Target Calories:** **${targetCal} kcal/day**\n• **Protein:** **${proteinG}g** (2.0g/kg bodyweight)\n• **Carbohydrates:** **${carbsG}g** (Training energy)\n• **Fats:** **${fatsG}g** (Hormone balance)\n• **Hydration Target:** ${(weight * 0.04).toFixed(1)} Liters/day`,
-      toolUsed: "calculateTDEEAndMacros",
-      toolData: {
-        maintenanceTDEE: tdee,
-        targetCalories: targetCal,
-        macros: { proteinG, carbsG, fatsG },
-      },
-      source: "fittrack-offline-tool-engine",
-    };
-  }
-
-  return {
-    success: true,
-    reply: `Hello **${name}**! I am your FIT-TRACK NutriCoach AI. I can calculate your exact macro targets, evaluate food photos, design hypertrophy meal plans, and guide your training biomechanics for **${goal}**. How can I help you today?`,
-    toolUsed: null,
-    toolData: null,
-    source: "fittrack-sports-science-engine",
-  };
 };
 
 export const analyzePoseWithVision = async (exerciseData) => {
