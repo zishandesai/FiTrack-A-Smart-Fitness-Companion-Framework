@@ -20,6 +20,8 @@ import {
   Search,
   Maximize2,
   Minimize2,
+  SwitchCamera,
+  Smartphone,
 } from "lucide-react";
 import DashboardLayout from "../../components/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
@@ -197,6 +199,7 @@ export default function AIFormCoach() {
   const [isCameraRunning, setIsCameraRunning] = useState(false);
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [facingMode, setFacingMode] = useState("user"); // "user" (selfie/front) | "environment" (rear)
 
   // Positioning & Confidence State
   const [isTrackingConfidenceLow, setIsTrackingConfidenceLow] = useState(false);
@@ -239,6 +242,9 @@ export default function AIFormCoach() {
   const viewportRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const animationFrameIdRef = useRef(null);
+  const isProcessingFrameRef = useRef(false);
   const cameraInstanceRef = useRef(null);
   const poseInstanceRef = useRef(null);
   const timerIntervalRef = useRef(null);
@@ -266,6 +272,7 @@ export default function AIFormCoach() {
     startTime: 0,
     prevLandmarks: null,
     voiceEnabled: true,
+    facingMode: "user",
   });
 
   // Keep runtime ref updated with latest settings
@@ -277,6 +284,10 @@ export default function AIFormCoach() {
   useEffect(() => {
     runtimeRef.current.voiceEnabled = voiceEnabled;
   }, [voiceEnabled]);
+
+  useEffect(() => {
+    runtimeRef.current.facingMode = facingMode;
+  }, [facingMode]);
 
   // Audio Cue Player
   const playAudioCue = useCallback((type = "good") => {
@@ -794,7 +805,7 @@ export default function AIFormCoach() {
     return { repTriggered, movementStateText };
   };
 
-  // Real-time Canvas Rendering
+  // Real-time Canvas Rendering (Handles Front Selfie Mirroring and Rear Camera Direct Mapping)
   const renderCanvasFrame = (image, landmarks, isFormGood, isConfidenceGood = true) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -804,18 +815,24 @@ export default function AIFormCoach() {
     canvas.width = image.width || 640;
     canvas.height = image.height || 480;
 
-    // Flip video horizontally for natural mirror behavior
+    const isUserFacing = (runtimeRef.current.facingMode || facingMode) === "user";
+
+    // Draw video feed (mirrored horizontally for selfie/front camera, non-mirrored for back/environment camera)
     ctx.save();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.translate(canvas.width, 0);
-    ctx.scale(-1, 1);
+    if (isUserFacing) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
     ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
     if (!landmarks) return;
 
-    // Mirrored landmark coordinate map
-    const mirroredLm = landmarks.map((l) => ({ ...l, x: 1 - l.x }));
+    // Coordinate mapping according to camera orientation
+    const renderedLm = isUserFacing
+      ? landmarks.map((l) => ({ ...l, x: 1 - l.x }))
+      : landmarks.map((l) => ({ ...l }));
 
     const connections = [
       [11, 12],
@@ -841,8 +858,8 @@ export default function AIFormCoach() {
     ctx.shadowBlur = 10;
 
     connections.forEach(([p1, p2]) => {
-      const a = mirroredLm[p1];
-      const b = mirroredLm[p2];
+      const a = renderedLm[p1];
+      const b = renderedLm[p2];
       if (a && b && (a.visibility ?? 1) >= 0.4 && (b.visibility ?? 1) >= 0.4) {
         ctx.beginPath();
         ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
@@ -855,7 +872,7 @@ export default function AIFormCoach() {
     ctx.shadowBlur = 12;
 
     [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28].forEach((idx) => {
-      const pt = mirroredLm[idx];
+      const pt = renderedLm[idx];
       if (pt && (pt.visibility ?? 1) >= 0.4) {
         ctx.beginPath();
         ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 5, 0, Math.PI * 2);
@@ -870,15 +887,40 @@ export default function AIFormCoach() {
     ctx.shadowBlur = 0;
   };
 
-  // Start Camera and Initialize Google MediaPipe Pose
-  const startCameraAndPose = async () => {
+  // Start Camera and Initialize Google MediaPipe Pose (Unified Single-Device WebRTC pipeline for Mobile & Desktop)
+  const startCameraAndPose = async (customFacingMode = null) => {
     try {
-      if (typeof window === "undefined" || !window.Pose || !window.Camera) {
-        alert("Google MediaPipe library is initializing. Please wait 2 seconds and click Start again.");
-        return;
+      const targetFacing = customFacingMode || runtimeRef.current.facingMode || facingMode;
+
+      // 1. Terminate any previous media stream and animation frames to prevent hardware lock
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
       }
 
+      if (streamRef.current) {
+        try {
+          streamRef.current.getTracks().forEach((track) => track.stop());
+        } catch (e) {
+          console.warn("Error stopping existing tracks:", e);
+        }
+        streamRef.current = null;
+      }
+
+      if (videoRef.current && videoRef.current.srcObject) {
+        try {
+          videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+        } catch (e) {}
+        videoRef.current.srcObject = null;
+      }
+
+      // 2. Initialize MediaPipe Pose instance if not already ready
       if (!poseInstanceRef.current) {
+        if (typeof window === "undefined" || !window.Pose) {
+          alert("MediaPipe Pose engine is loading. Please wait 2 seconds and tap Start again.");
+          return;
+        }
+
         const pose = new window.Pose({
           locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
         });
@@ -1016,24 +1058,91 @@ export default function AIFormCoach() {
         poseInstanceRef.current = pose;
       }
 
-      if (videoRef.current && !cameraInstanceRef.current) {
-        const camera = new window.Camera(videoRef.current, {
-          onFrame: async () => {
-            if (poseInstanceRef.current && videoRef.current) {
-              await poseInstanceRef.current.send({ image: videoRef.current });
-            }
+      // 3. Acquire Media Stream directly via WebRTC getUserMedia (Mobile & Desktop Single-Device Optimized)
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
           },
-          width: 1280,
-          height: 720,
+          audio: false,
         });
-        await camera.start();
-        cameraInstanceRef.current = camera;
+      } catch (err1) {
+        console.warn("Primary getUserMedia ideal constraints failed, falling back to facingMode only:", err1);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: targetFacing },
+            audio: false,
+          });
+        } catch (err2) {
+          console.warn("Secondary getUserMedia failed, falling back to any available device video:", err2);
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
       }
 
+      if (!stream) {
+        throw new Error("Unable to capture camera stream on this device.");
+      }
+
+      streamRef.current = stream;
+
+      // 4. Hook up HTML Video Element
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.setAttribute("playsinline", "true");
+        videoRef.current.setAttribute("webkit-playsinline", "true");
+        videoRef.current.muted = true;
+        
+        await videoRef.current.play().catch((e) => {
+          console.warn("Video play promise error (handled):", e);
+        });
+      }
+
+      // 5. High-Performance Frame Dispatch Loop (requestAnimationFrame with backpressure guard)
+      const processVideoFrame = async () => {
+        if (
+          videoRef.current &&
+          videoRef.current.readyState >= 2 &&
+          !videoRef.current.paused &&
+          !videoRef.current.ended &&
+          poseInstanceRef.current
+        ) {
+          if (!isProcessingFrameRef.current) {
+            isProcessingFrameRef.current = true;
+            try {
+              await poseInstanceRef.current.send({ image: videoRef.current });
+            } catch (e) {
+              // Frame dropped or skipped under load
+            } finally {
+              isProcessingFrameRef.current = false;
+            }
+          }
+        }
+        if (streamRef.current && streamRef.current.active) {
+          animationFrameIdRef.current = requestAnimationFrame(processVideoFrame);
+        }
+      };
+
+      animationFrameIdRef.current = requestAnimationFrame(processVideoFrame);
       setIsCameraRunning(true);
     } catch (err) {
       console.error("Camera/MediaPipe setup error:", err);
-      alert("Could not access camera. Please allow camera permissions in your browser.");
+      alert("Could not access camera. Please allow camera permissions in your browser or check device settings.");
+    }
+  };
+
+  // Flip Camera between Front (Selfie) and Rear (Back/Environment)
+  const toggleCameraFlip = async () => {
+    const nextMode = facingMode === "user" ? "environment" : "user";
+    setFacingMode(nextMode);
+    runtimeRef.current.facingMode = nextMode;
+    if (isCameraRunning) {
+      await startCameraAndPose(nextMode);
     }
   };
 
@@ -1155,7 +1264,22 @@ export default function AIFormCoach() {
 
   // Stop Camera & Release Webcam Hardware
   const handleStopCamera = useCallback(() => {
-    // 1. Physically turn off the webcam hardware by stopping each MediaStreamTrack
+    // 1. Cancel requestAnimationFrame loop
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
+    }
+
+    // 2. Stop each MediaStreamTrack directly on the stream and video element
+    if (streamRef.current) {
+      try {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      } catch (e) {
+        console.warn("Error stopping stream tracks:", e);
+      }
+      streamRef.current = null;
+    }
+
     if (videoRef.current) {
       if (videoRef.current.srcObject) {
         try {
@@ -1176,7 +1300,7 @@ export default function AIFormCoach() {
       } catch (e) {}
     }
 
-    // 2. Stop the MediaPipe Camera utility
+    // 3. Stop the MediaPipe Camera utility if still instantiated
     if (cameraInstanceRef.current) {
       try {
         cameraInstanceRef.current.stop();
@@ -1186,7 +1310,7 @@ export default function AIFormCoach() {
       cameraInstanceRef.current = null;
     }
 
-    // 3. Terminate active set state and timer
+    // 4. Terminate active set state and timer
     runtimeRef.current.isWorkoutActive = false;
     setIsWorkoutActive(false);
     if (timerIntervalRef.current) {
@@ -1194,7 +1318,7 @@ export default function AIFormCoach() {
       timerIntervalRef.current = null;
     }
 
-    // 4. Clear the canvas
+    // 5. Clear the canvas
     if (canvasRef.current) {
       try {
         const ctx = canvasRef.current.getContext("2d");
@@ -1204,7 +1328,7 @@ export default function AIFormCoach() {
       } catch (e) {}
     }
 
-    // 5. Update state
+    // 6. Update state
     setIsCameraRunning(false);
     setMovementPhase("CAMERA OFF");
     setLiveFormStatus({ text: "Camera Stopped", isGood: true });
@@ -1254,6 +1378,12 @@ export default function AIFormCoach() {
   useEffect(() => {
     return () => {
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+      }
       if (cameraInstanceRef.current) {
         cameraInstanceRef.current.stop();
         cameraInstanceRef.current = null;
@@ -1317,7 +1447,18 @@ export default function AIFormCoach() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Camera Facing Mode Switcher */}
+            <button
+              type="button"
+              className={`aifc-cam-flip-btn ${facingMode === "environment" ? "rear-active" : ""}`}
+              onClick={toggleCameraFlip}
+              title={`Switch Camera (Currently: ${facingMode === "user" ? "Front / Selfie" : "Rear / Back"})`}
+            >
+              <SwitchCamera size={14} className="shrink-0" />
+              <span>{facingMode === "user" ? "Front Cam" : "Rear Cam"}</span>
+            </button>
+
             {isCameraRunning && (
               <button
                 type="button"
@@ -1340,8 +1481,8 @@ export default function AIFormCoach() {
             </button>
 
             <div className="aifc-engine-badge">
-              <Activity size={14} className="text-green" />
-              <span>60 FPS MediaPipe Engine</span>
+              <Smartphone size={13} className="text-green" />
+              <span>Mobile / WebRTC Active</span>
             </div>
           </div>
         </div>
@@ -1360,6 +1501,7 @@ export default function AIFormCoach() {
               <video
                 ref={videoRef}
                 playsInline
+                webkit-playsinline="true"
                 muted
                 style={{ position: "absolute", top: 0, left: 0, width: "1px", height: "1px", opacity: 0 }}
               />
@@ -1372,15 +1514,15 @@ export default function AIFormCoach() {
                     <Camera size={34} />
                   </div>
                   <div className="aifc-standby-badge">
-                    <Activity size={12} />
-                    <span>AI MediaPipe Tracking Ready</span>
+                    <Smartphone size={12} />
+                    <span>Single-Device Mobile & Desktop Mode</span>
                   </div>
                   <div>
                     <h3 className="text-xl font-black text-white tracking-tight">
                       Ready to Track <span className="text-green">{exerciseInput}</span>
                     </h3>
                     <p className="text-xs text-muted max-w-md mt-1.5 leading-relaxed">
-                      Position your device according to the exercise requirements. Click <strong>Start Camera & Calibration</strong> below to begin automated posture alignment and real-time biomechanical rep tracking.
+                      Use your phone or computer directly as both the screen and the camera. Prop it on a bench or hold it, then tap <strong>Start Camera & Calibration</strong>.
                     </p>
                   </div>
 
@@ -1388,9 +1530,14 @@ export default function AIFormCoach() {
                   <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] max-w-md w-full text-left flex items-start gap-3">
                     <span className="text-lg">{positioningFeedback.icon}</span>
                     <div className="flex-1">
-                      <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                        <span>Recommended Setup:</span>
-                        <span className="text-green">{positioningFeedback.recommendedView}</span>
+                      <div className="text-xs font-bold text-white flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span>Recommended Setup:</span>
+                          <span className="text-green">{positioningFeedback.recommendedView}</span>
+                        </div>
+                        <span className="text-[10px] text-muted uppercase font-mono">
+                          {facingMode === "user" ? "Front Cam (Mirror)" : "Rear Cam"}
+                        </span>
                       </div>
                       <p className="text-[11px] text-muted mt-0.5 leading-normal">
                         {positioningFeedback.cue}
@@ -1398,7 +1545,7 @@ export default function AIFormCoach() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2.5 mt-2">
+                  <div className="flex items-center gap-2.5 mt-2 flex-wrap justify-center">
                     <button
                       type="button"
                       className="aifc-btn aifc-btn-primary py-2 px-5 text-xs"
@@ -1406,6 +1553,15 @@ export default function AIFormCoach() {
                     >
                       <Play size={14} />
                       <span>Start Camera & Calibration</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="aifc-btn aifc-btn-outline py-2 px-3.5 text-xs"
+                      onClick={toggleCameraFlip}
+                      title="Toggle between selfie front camera and back rear camera"
+                    >
+                      <SwitchCamera size={14} />
+                      <span>{facingMode === "user" ? "Flip to Rear Cam" : "Flip to Front Cam"}</span>
                     </button>
                     <button
                       type="button"
@@ -1431,7 +1587,7 @@ export default function AIFormCoach() {
                             Camera Positioning Setup
                           </div>
                           <div className="text-[11px] text-green font-semibold">
-                            {positioningFeedback.recommendedView}
+                            {positioningFeedback.recommendedView} • {facingMode === "user" ? "Front (Mirror)" : "Rear Camera"}
                           </div>
                         </div>
                       </div>
@@ -1471,12 +1627,23 @@ export default function AIFormCoach() {
                       />
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-white/[0.08]">
-                      <span className="text-[10px] text-muted">
-                        {isPositionLocked
-                          ? "✓ Required landmarks verified with high confidence (>0.65)"
-                          : "Hold position steady to unlock rep counter"}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 mt-3 pt-2 border-t border-white/[0.08] flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="aifc-btn aifc-btn-outline py-1 px-2.5 text-[11px]"
+                          onClick={toggleCameraFlip}
+                          title="Flip camera"
+                        >
+                          <SwitchCamera size={12} />
+                          <span>Flip Cam</span>
+                        </button>
+                        <span className="text-[10px] text-muted hidden sm:inline">
+                          {isPositionLocked
+                            ? "✓ High tracking confidence (>0.65)"
+                            : "Hold position steady"}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         className={`aifc-btn py-1.5 px-4 text-xs font-bold ${
@@ -1524,22 +1691,34 @@ export default function AIFormCoach() {
                       <div className="aifc-rep-num">{reps}</div>
                     </div>
 
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2">
                       {/* Live Form Alert Indicator */}
                       <div className={`aifc-form-badge ${!liveFormStatus.isGood ? "error" : ""}`}>
                         <div className="aifc-form-title">FORM MONITOR</div>
                         <div className="aifc-form-msg">{liveFormStatus.text}</div>
                       </div>
 
+                      {/* HUD Camera Flip Button */}
+                      <button
+                        type="button"
+                        className="aifc-hud-cam-btn"
+                        onClick={toggleCameraFlip}
+                        title="Flip Camera (Front/Rear)"
+                        style={{ color: "#ffffff", borderColor: "rgba(255, 255, 255, 0.2)" }}
+                      >
+                        <SwitchCamera size={13} />
+                        <span className="hidden sm:inline">Flip</span>
+                      </button>
+
                       {/* HUD Quick Stop Camera Button */}
                       <button
                         type="button"
                         className="aifc-hud-cam-btn"
                         onClick={handleStopCamera}
-                        title="Turn off webcam camera"
+                        title="Turn off camera"
                       >
                         <CameraOff size={13} />
-                        <span>Stop Cam</span>
+                        <span>Stop</span>
                       </button>
 
                       {/* Fullscreen Button in HUD */}
@@ -1589,6 +1768,10 @@ export default function AIFormCoach() {
                       <span>Finish Set</span>
                     </button>
                   )}
+                  <button className="aifc-btn aifc-btn-outline py-2 px-3 text-xs" onClick={toggleCameraFlip} title="Flip Camera">
+                    <SwitchCamera size={14} />
+                    <span>Flip</span>
+                  </button>
                   {isCameraRunning && (
                     <button className="aifc-btn aifc-btn-camera-off py-2 px-4 text-xs" onClick={handleStopCamera}>
                       <CameraOff size={14} />
@@ -1638,6 +1821,17 @@ export default function AIFormCoach() {
                   <span>Finish Set</span>
                 </button>
               )}
+
+              {/* Flip Camera Button in Controls */}
+              <button
+                type="button"
+                className="aifc-btn aifc-btn-outline"
+                onClick={toggleCameraFlip}
+                title={`Switch camera facing mode (Currently ${facingMode === "user" ? "Front" : "Rear"})`}
+              >
+                <SwitchCamera size={15} />
+                <span>{facingMode === "user" ? "Switch to Rear Cam" : "Switch to Front Cam"}</span>
+              </button>
 
               {/* Dedicated Stop Camera Button */}
               {isCameraRunning && (
