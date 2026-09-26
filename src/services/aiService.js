@@ -1,13 +1,148 @@
 import api from "./api";
 
-export const chatNutriCoach = async (message, history = [], clientContext = {}, imageBase64 = null) => {
-  try {
-    const response = await api.post("/ai/chat", { message, history, clientContext, imageBase64 });
-    if (response?.data) return response.data;
-  } catch (err) {
-    console.warn("[NutriCoach Client] Backend offline, using sports science fallback engine:", err.message);
+// System prompt for live Gemini responses
+const SYSTEM_INSTRUCTION = `You are "FIT-TRACK NutriCoach", an elite AI Sports Scientist, Exercise Biomechanist, and Clinical Sports Nutritionist for the FIT-TRACK Smart Fitness Companion.
+
+STRICT DOMAIN GUIDELINES:
+1. Specialize strictly in human physical fitness, hypertrophy, powerlifting, calisthenics, joint biomechanics, sports nutrition (macros/calories/hydration/supplements), recovery, and gym workout programming.
+2. If the user asks about non-fitness topics, politely redirect them back to sports nutrition and workout science.
+3. Tone: Evidence-based, motivating, concise, and professional. Use markdown formatting with bold headers and bullet points.`;
+
+/**
+ * Direct Live Gemini API call from frontend (Runs independently of Express backend)
+ */
+const callLiveGeminiAPI = async (message, history = [], clientContext = {}, imageBase64 = null) => {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey || apiKey.trim() === "") return null;
+
+  const name = clientContext?.name || "Athlete";
+  const goal = clientContext?.goal || "General Fitness";
+  const weight = Number(clientContext?.weight) || 70;
+  const height = Number(clientContext?.height) || 175;
+  const trainer = clientContext?.trainerName || clientContext?.trainer || "Coach";
+
+  const contextHeader = `[ATHLETE CONTEXT: Name: ${name} | Goal: ${goal} | Weight: ${weight}kg | Height: ${height}cm | Coach: ${trainer}]\n\n`;
+
+  const contents = [];
+
+  // Add conversation history
+  if (Array.isArray(history) && history.length > 0) {
+    history.slice(-6).forEach((h) => {
+      contents.push({
+        role: h.role === "assistant" || h.role === "model" ? "model" : "user",
+        parts: [{ text: h.content || h.text || "" }],
+      });
+    });
   }
 
+  // Build current user message parts
+  const currentParts = [];
+  if (imageBase64) {
+    let mimeType = "image/jpeg";
+    let cleanBase64 = imageBase64;
+    const match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (match) {
+      mimeType = match[1];
+      cleanBase64 = match[2];
+    } else {
+      cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    }
+    currentParts.push({
+      inlineData: {
+        mimeType,
+        data: cleanBase64,
+      },
+    });
+  }
+
+  currentParts.push({
+    text: `${contextHeader}${message || "Analyze this food and provide a complete nutrition and macro breakdown."}`,
+  });
+
+  contents.push({
+    role: "user",
+    parts: currentParts,
+  });
+
+  const modelsToTry = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"];
+
+  for (const model of modelsToTry) {
+    try {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const payload = {
+        contents,
+        systemInstruction: {
+          parts: [{ text: SYSTEM_INSTRUCTION }],
+        },
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 1024,
+        },
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.text();
+        console.warn(`[Gemini Direct API] Model ${model} returned ${res.status}:`, errorBody);
+        continue;
+      }
+
+      const data = await res.json();
+      const generatedText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (generatedText) {
+        let foodData = null;
+        if (imageBase64) {
+          const calMatch = generatedText.match(/(?:Calories|Total Calories)[\s:*~]+(\d{2,4})/i);
+          const proMatch = generatedText.match(/(?:Protein)[\s:*~]+(\d{1,3})/i);
+          const carbMatch = generatedText.match(/(?:Carbohydrates|Carbs)[\s:*~]+(\d{1,3})/i);
+          const fatMatch = generatedText.match(/(?:Fats|Fat)[\s:*~]+(\d{1,3})/i);
+          foodData = {
+            dishName: "AI Analyzed Food Plate",
+            calories: calMatch ? parseInt(calMatch[1], 10) : 520,
+            protein: proMatch ? parseInt(proMatch[1], 10) : 42,
+            carbs: carbMatch ? parseInt(carbMatch[1], 10) : 54,
+            fats: fatMatch ? parseInt(fatMatch[1], 10) : 12,
+            goalAlignment: "Optimal",
+          };
+        }
+
+        return {
+          success: true,
+          reply: generatedText,
+          foodData,
+          source: `gemini-live-cloud (${model})`,
+        };
+      }
+    } catch (apiErr) {
+      console.warn(`[Gemini Direct API] Fetch failed for ${model}:`, apiErr.message);
+    }
+  }
+
+  return null;
+};
+
+export const chatNutriCoach = async (message, history = [], clientContext = {}, imageBase64 = null) => {
+  // 1. Try Live Gemini Cloud API directly from browser
+  const directLiveResponse = await callLiveGeminiAPI(message, history, clientContext, imageBase64);
+  if (directLiveResponse) {
+    return directLiveResponse;
+  }
+
+  // 2. Try Express Backend if running locally
+  try {
+    const response = await api.post("/ai/chat", { message, history, clientContext, imageBase64 });
+    if (response?.data && response.data.reply) return response.data;
+  } catch (err) {
+    console.warn("[NutriCoach Client] Backend unavailable, using sports science fallback engine:", err.message);
+  }
+
+  // 3. Deterministic Sports Science Engine Fallback
   const text = (message || "").toLowerCase();
   const name = clientContext?.name || "Athlete";
   const goal = clientContext?.goal || "General Fitness";
