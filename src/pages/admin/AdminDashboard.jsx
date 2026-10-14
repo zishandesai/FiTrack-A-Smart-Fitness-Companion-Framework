@@ -13,7 +13,17 @@ import {
 import DashboardLayout from "../../components/DashboardLayout";
 import StatCard from "../../components/StatCard";
 import ProgressChart from "../../components/ProgressChart";
-import { getMemberships, getAttendanceData, getMembersList, getTrainersList } from "../../services/mockData";
+import {
+  getMemberships,
+  getAttendanceData,
+  getMembersList,
+  saveMembersList,
+  getTrainersList,
+  saveTrainersList,
+  DEFAULT_CERTIFIED_TRAINERS,
+} from "../../services/mockData";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import supabaseService from "../../services/supabaseService";
 
 export default function AdminDashboard() {
   const [memberships, setMemberships] = useState([]);
@@ -23,12 +33,75 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const loadData = async () => {
+      // 1. Initial local state
       setMemberships(getMemberships());
       setMembers(getMembersList());
       setTrainers(getTrainersList());
       setAttData(getAttendanceData());
 
-      // Attempt to load live backend records if server is running
+      // 2. Fetch from Supabase Cloud Database if configured
+      if (isSupabaseConfigured()) {
+        try {
+          const [cloudMembers, cloudTrainers, cloudReqs] = await Promise.all([
+            supabaseService.getAllMembers(),
+            supabaseService.getAllTrainers(),
+            supabaseService.getAllMembershipRequests(),
+          ]);
+
+          // Merge members
+          if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
+            const local = getMembersList();
+            const map = new Map();
+            local.forEach((m) => map.set(m.id || m.email, m));
+            cloudMembers.forEach((m) =>
+              map.set(m.id || m.email, { ...(map.get(m.id || m.email) || {}), ...m })
+            );
+            const merged = Array.from(map.values());
+            setMembers(merged);
+            saveMembersList(merged);
+          }
+
+          // Merge trainers with default certified coaches
+          const trMap = new Map();
+          DEFAULT_CERTIFIED_TRAINERS.forEach((t) => trMap.set(t.id, t));
+          getTrainersList().forEach((t) =>
+            trMap.set(t.id, { ...(trMap.get(t.id) || {}), ...t })
+          );
+          if (Array.isArray(cloudTrainers)) {
+            cloudTrainers.forEach((t) =>
+              trMap.set(t.id, { ...(trMap.get(t.id) || {}), ...t })
+            );
+          }
+          const mergedTrainers = Array.from(trMap.values());
+          setTrainers(mergedTrainers);
+          saveTrainersList(mergedTrainers);
+
+          // Map cloud membership requests
+          if (Array.isArray(cloudReqs) && cloudReqs.length > 0) {
+            setMemberships(
+              cloudReqs.map((r) => ({
+                id: r.id,
+                memberName:
+                  r.user?.name ||
+                  (r.user?.email ? r.user.email.split("@")[0] : "Member"),
+                memberEmail: r.user?.email,
+                plan: r.plan,
+                duration: r.duration,
+                price: r.price,
+                paymentMethod: r.payment_method,
+                status: r.status,
+                date: r.created_at
+                  ? new Date(r.created_at).toISOString().split("T")[0]
+                  : "",
+              }))
+            );
+          }
+        } catch (err) {
+          console.warn("Supabase AdminDashboard load error:", err);
+        }
+      }
+
+      // 3. Attempt to load live backend records if server is running
       try {
         const api = (await import("../../services/api")).default;
         const [mRes, tRes, reqRes] = await Promise.allSettled([
@@ -38,15 +111,15 @@ export default function AdminDashboard() {
         ]);
         if (mRes.status === "fulfilled") {
           const list = mRes.value?.data?.members || mRes.value?.data?.data || [];
-          if (Array.isArray(list)) setMembers(list);
+          if (Array.isArray(list) && list.length > 0) setMembers(list);
         }
         if (tRes.status === "fulfilled") {
           const list = tRes.value?.data?.trainers || tRes.value?.data?.data || [];
-          if (Array.isArray(list)) setTrainers(list);
+          if (Array.isArray(list) && list.length > 0) setTrainers(list);
         }
         if (reqRes.status === "fulfilled") {
           const list = reqRes.value?.data?.requests || reqRes.value?.data?.data || [];
-          if (Array.isArray(list)) setMemberships(list);
+          if (Array.isArray(list) && list.length > 0) setMemberships(list);
         }
       } catch {
         // Fallback to local state
@@ -55,7 +128,13 @@ export default function AdminDashboard() {
 
     loadData();
     window.addEventListener("fittrack:membership-changed", loadData);
-    return () => window.removeEventListener("fittrack:membership-changed", loadData);
+    window.addEventListener("fittrack:assignment-changed", loadData);
+    window.addEventListener("fittrack:progress-updated", loadData);
+    return () => {
+      window.removeEventListener("fittrack:membership-changed", loadData);
+      window.removeEventListener("fittrack:assignment-changed", loadData);
+      window.removeEventListener("fittrack:progress-updated", loadData);
+    };
   }, []);
 
   const pendingRequests = memberships.filter((m) => m.status === "pending");

@@ -138,6 +138,7 @@ const purgeDummyLocalStorage = () => {
       } catch (e) {}
     }
 
+    const userData = localStorage.getItem("fittrack_user");
     if (userData) {
       try {
         const parsedUser = JSON.parse(userData);

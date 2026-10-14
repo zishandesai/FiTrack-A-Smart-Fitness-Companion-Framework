@@ -25,9 +25,12 @@ import {
   approveMemberPayment,
   toggleMemberPaymentStatus,
   getTrainersList,
+  saveTrainersList,
   assignMemberToTrainer,
   removeMemberFromTrainer,
 } from "../../services/mockData";
+import { isSupabaseConfigured, supabase } from "../../lib/supabase";
+import { supabaseService } from "../../services/supabaseService";
 
 export default function Members() {
   const [members, setMembers] = useState([]);
@@ -51,8 +54,47 @@ export default function Members() {
   });
 
   const refresh = async () => {
-    setMembers(getMembersList());
-    setTrainers(getTrainersList());
+    // 1. Instant local/cached data
+    const localMembers = getMembersList();
+    const localTrainers = getTrainersList();
+    setMembers(localMembers);
+    setTrainers(localTrainers);
+
+    // 2. Load live cloud records from Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        const [cloudMembers, cloudTrainers] = await Promise.all([
+          supabaseService.getAllMembers(),
+          supabaseService.getAllTrainers(),
+        ]);
+
+        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
+          const merged = [...cloudMembers];
+          localMembers.forEach((lm) => {
+            const alreadyExists = merged.some(
+              (cm) => cm.id === lm.id || (cm.email && cm.email.toLowerCase() === lm.email?.toLowerCase())
+            );
+            if (!alreadyExists) merged.push(lm);
+          });
+          setMembers(merged);
+          saveMembersList(merged);
+        }
+
+        const allTrainers = [...cloudTrainers];
+        localTrainers.forEach((lt) => {
+          const alreadyExists = allTrainers.some(
+            (ct) => ct.id === lt.id || (ct.email && ct.email.toLowerCase() === lt.email?.toLowerCase())
+          );
+          if (!alreadyExists) allTrainers.push(lt);
+        });
+        setTrainers(allTrainers);
+        saveTrainersList(allTrainers);
+      } catch (err) {
+        console.warn("Supabase refresh error in Members.jsx:", err);
+      }
+    }
+
+    // 3. Fallback to Express backend if online
     try {
       const api = (await import("../../services/api")).default;
       const [membersRes, trainersRes] = await Promise.allSettled([
@@ -96,6 +138,14 @@ export default function Members() {
     e.preventDefault();
     if (!assigningMember || !selectedTrainerId) return;
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(assigningMember.id, selectedTrainerId);
+      } catch (err) {
+        console.warn("Supabase assignTrainer error:", err);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.post(`/members/${assigningMember.id}/assign-trainer`, {
@@ -117,6 +167,14 @@ export default function Members() {
   const handleUnassignTrainer = async (member) => {
     if (!window.confirm(`Unassign coach from ${member.name}?`)) return;
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(member.id, null);
+      } catch (err) {
+        console.warn("Supabase unassign error:", err);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.post(`/members/${member.id}/remove-trainer`);
@@ -132,6 +190,14 @@ export default function Members() {
   };
 
   const handleApprovePayment = async (member) => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("memberships").update({ status: "active" }).eq("user_id", member.id);
+      } catch (err) {
+        console.warn("Supabase payment approve warning:", err);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.put(`/memberships/user/${member.id}/toggle`);
@@ -152,6 +218,13 @@ export default function Members() {
       // Graceful fallback to mock data
     }
     const newStatus = toggleMemberPaymentStatus(member.id);
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("memberships").update({ status: newStatus }).eq("user_id", member.id);
+      } catch (e) {}
+    }
+
     setMembers(getMembersList());
     if (newStatus === "active") {
       setNotification(`✓ Cash confirmed! ${member.name}'s membership is now ACTIVE.`);
@@ -161,8 +234,13 @@ export default function Members() {
     setTimeout(() => setNotification(""), 4000);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this member?")) {
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase.from("profiles").delete().eq("id", id);
+        } catch (e) {}
+      }
       const updated = members.filter((m) => m.id !== id);
       setMembers(updated);
       saveMembersList(updated);
@@ -171,6 +249,16 @@ export default function Members() {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("profiles").update({
+          name: editingMember.name,
+          phone: editingMember.phone || null,
+          goal: editingMember.goal || null,
+        }).eq("id", editingMember.id);
+      } catch (e) {}
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.put(`/members/${editingMember.id}`, editingMember);
@@ -205,10 +293,11 @@ export default function Members() {
     setTimeout(() => setNotification(""), 4000);
   };
 
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
+    const memberId = `mem_${Date.now()}`;
     const created = {
-      id: `mem_${Date.now()}`,
+      id: memberId,
       ...newMember,
       membershipStatus: newMember.membershipStatus || "active",
       progress: 0,
@@ -216,7 +305,24 @@ export default function Members() {
       attendance: 0,
       workoutsCount: 0,
       formScore: 0,
+      joinedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     };
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("profiles").upsert({
+          id: memberId,
+          email: newMember.email,
+          name: newMember.name,
+          phone: newMember.phone || null,
+          role: "member",
+          created_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn("Supabase member add fallback:", e);
+      }
+    }
+
     const updated = [created, ...members];
     setMembers(updated);
     saveMembersList(updated);

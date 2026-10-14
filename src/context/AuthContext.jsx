@@ -211,6 +211,52 @@ export function AuthProvider({ children }) {
         };
         setUser(backendUser);
         localStorage.setItem("fittrack_user", JSON.stringify(backendUser));
+
+        // Ensure member is saved in the members roster so Admin always sees them
+        if (backendUser.role === "member") {
+          try {
+            const members = getMembersList();
+            const existingIdx = members.findIndex(
+              (m) =>
+                m.email?.toLowerCase() === backendUser.email?.toLowerCase() ||
+                (backendUser.id && (m.id === backendUser.id || m._id === backendUser.id))
+            );
+            const memRecord = {
+              id: backendUser.id || backendUser._id || `mem_${Date.now()}`,
+              _id: backendUser.id || backendUser._id,
+              name: backendUser.name || (backendUser.email ? backendUser.email.split("@")[0] : "Member"),
+              email: backendUser.email,
+              phone: backendUser.phone || "—",
+              role: "member",
+              plan: backendUser.plan || "PRO",
+              membershipStatus: backendUser.membershipStatus || "active",
+              trainer: backendUser.trainer || resolvedTrainer || "—",
+              trainerName: backendUser.trainerName || resolvedTrainer || null,
+              trainerSpecialty: backendUser.trainerSpecialty || resolvedSpecialty || null,
+              trainerId: backendUser.trainerId || resolvedTrainerId || null,
+              goal: backendUser.goal || "Build Muscle",
+              weight: backendUser.weight || 70,
+              targetWeight: backendUser.targetWeight || null,
+              height: backendUser.height || null,
+              joinedDate:
+                backendUser.joinedDate ||
+                new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+              progress: backendUser.progress || 0,
+              attendance: backendUser.attendance || 0,
+              workoutsCount: backendUser.workoutsCount || 0,
+              formScore: backendUser.formScore || 0,
+            };
+            if (existingIdx >= 0) {
+              members[existingIdx] = { ...members[existingIdx], ...memRecord };
+              saveMembersList([...members]);
+            } else {
+              saveMembersList([memRecord, ...members]);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         return backendUser;
       } else {
         throw new Error(data.message || "Login failed. Please verify your credentials.");
@@ -250,7 +296,8 @@ export function AuthProvider({ children }) {
           specialty: data.user.specialty || userData.specialty || "Strength & Hypertrophy",
           experience: data.user.experience || userData.experience || "3+ years",
           membership: null,
-          membershipStatus: "none",
+          membershipStatus: "active",
+          plan: "PRO",
           progress: 0,
           attendance: 0,
           workoutsCount: 0,
@@ -258,6 +305,42 @@ export function AuthProvider({ children }) {
         };
         setUser(backendUser);
         localStorage.setItem("fittrack_user", JSON.stringify(backendUser));
+
+        // Ensure newly registered member is immediately in the admin roster
+        if (resolvedRole === "member") {
+          try {
+            const members = getMembersList();
+            if (!members.some((m) => m.email?.toLowerCase() === backendUser.email?.toLowerCase())) {
+              const newMem = {
+                id: backendUser.id || backendUser._id || `mem_${Date.now()}`,
+                _id: backendUser.id || backendUser._id,
+                name: backendUser.name || (backendUser.email ? backendUser.email.split("@")[0] : "Member"),
+                email: backendUser.email,
+                phone: backendUser.phone || "—",
+                role: "member",
+                plan: "PRO",
+                membershipStatus: "active",
+                trainer: "—",
+                trainerName: null,
+                trainerSpecialty: null,
+                trainerId: null,
+                goal: backendUser.goal || "Build Muscle",
+                weight: backendUser.weight || 70,
+                targetWeight: backendUser.targetWeight || null,
+                height: backendUser.height || null,
+                joinedDate: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+                progress: 0,
+                attendance: 0,
+                workoutsCount: 0,
+                formScore: 0,
+              };
+              saveMembersList([newMem, ...members]);
+            }
+          } catch {
+            // ignore
+          }
+        }
+
         return backendUser;
       } else {
         throw new Error(data.message || "Registration failed.");
@@ -271,7 +354,16 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      const { isSupabaseConfigured } = await import("../lib/supabase");
+      const { default: supabaseService } = await import("../services/supabaseService");
+      if (isSupabaseConfigured()) {
+        await supabaseService.signOut();
+      }
+    } catch {
+      // ignore
+    }
     setUser(null);
     localStorage.removeItem("fittrack_user");
     localStorage.removeItem("fittrack_token");

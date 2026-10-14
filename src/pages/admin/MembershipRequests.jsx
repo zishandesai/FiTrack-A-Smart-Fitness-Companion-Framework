@@ -24,6 +24,8 @@ import {
   getAdminRequests,
   updateAdminRequestStatus,
 } from "../../services/mockData";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import supabaseService from "../../services/supabaseService";
 
 export default function MembershipRequests() {
   const [activeTab, setActiveTab] = useState("petitions"); // "petitions" or "memberships"
@@ -39,8 +41,41 @@ export default function MembershipRequests() {
   const [adminNoteInput, setAdminNoteInput] = useState("");
 
   const refreshData = async () => {
-    // 1. Memberships
+    // 1. Memberships from local state
     setMembershipReqs(getMemberships());
+
+    // 2. Fetch live Supabase Cloud memberships
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudReqs = await supabaseService.getAllMembershipRequests();
+        if (Array.isArray(cloudReqs) && cloudReqs.length > 0) {
+          const mapped = cloudReqs.map((r) => ({
+            id: r.id,
+            memberName:
+              r.user?.name ||
+              (r.user?.email ? r.user.email.split("@")[0] : "Member"),
+            memberEmail: r.user?.email,
+            plan: r.plan,
+            duration: r.duration,
+            price: r.price,
+            paymentMethod: r.payment_method,
+            status: r.status,
+            date: r.created_at
+              ? new Date(r.created_at).toISOString().split("T")[0]
+              : "",
+          }));
+
+          const localReqs = getMemberships();
+          const reqMap = new Map();
+          localReqs.forEach((m) => reqMap.set(m.id, m));
+          mapped.forEach((m) => reqMap.set(m.id, { ...(reqMap.get(m.id) || {}), ...m }));
+          setMembershipReqs(Array.from(reqMap.values()));
+        }
+      } catch (err) {
+        console.warn("Supabase membership requests fetch error:", err);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       const memRes = await api.get("/memberships");
@@ -51,7 +86,7 @@ export default function MembershipRequests() {
       // local
     }
 
-    // 2. Petitions & Requests
+    // 3. Petitions & Requests
     setPetitions(getAdminRequests());
     try {
       const api = (await import("../../services/api")).default;
@@ -76,6 +111,14 @@ export default function MembershipRequests() {
 
   // Membership actions
   const handleApproveMembership = async (id, memberName, plan) => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.updateMembershipStatus(id, "active");
+      } catch (e) {
+        console.warn("Supabase approve error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.put(`/memberships/${id}/approve`);
@@ -89,6 +132,14 @@ export default function MembershipRequests() {
   };
 
   const handleRejectMembership = async (id, memberName) => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.updateMembershipStatus(id, "rejected");
+      } catch (e) {
+        console.warn("Supabase reject error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.put(`/memberships/${id}/reject`);
@@ -102,6 +153,14 @@ export default function MembershipRequests() {
   };
 
   const handleRevokeMembership = async (id, memberName) => {
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.updateMembershipStatus(id, "pending");
+      } catch (e) {
+        console.warn("Supabase revoke error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.put(`/memberships/${id}/revoke`);

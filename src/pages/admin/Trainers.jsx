@@ -19,9 +19,13 @@ import {
   getTrainersList,
   saveTrainersList,
   getMembersList,
+  saveMembersList,
   assignMemberToTrainer,
   removeMemberFromTrainer,
+  DEFAULT_CERTIFIED_TRAINERS,
 } from "../../services/mockData";
+import { isSupabaseConfigured, supabase } from "../../lib/supabase";
+import { supabaseService } from "../../services/supabaseService";
 
 export default function Trainers() {
   const [trainers, setTrainers] = useState([]);
@@ -46,8 +50,57 @@ export default function Trainers() {
   const [trainerError, setTrainerError] = useState("");
 
   const refreshData = async () => {
-    setTrainers(getTrainersList());
-    setMembers(getMembersList());
+    // 1. Instant local/cached data
+    const localTrainers = getTrainersList();
+    const localMembers = getMembersList();
+    setTrainers(localTrainers);
+    setMembers(localMembers);
+
+    // 2. Load live cloud records from Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        const [cloudTrainers, cloudMembers] = await Promise.all([
+          supabaseService.getAllTrainers(),
+          supabaseService.getAllMembers(),
+        ]);
+
+        // Merge certified default coaches + any registered cloud coaches
+        const allTrainers = [...cloudTrainers];
+        localTrainers.forEach((lt) => {
+          const alreadyExists = allTrainers.some(
+            (ct) => ct.id === lt.id || (ct.email && ct.email.toLowerCase() === lt.email?.toLowerCase())
+          );
+          if (!alreadyExists) allTrainers.push(lt);
+        });
+
+        // Ensure default coaches are always included if not present
+        DEFAULT_CERTIFIED_TRAINERS.forEach((dt) => {
+          const exists = allTrainers.some(
+            (t) => t.id === dt.id || t.name?.toLowerCase() === dt.name.toLowerCase()
+          );
+          if (!exists) allTrainers.push(dt);
+        });
+
+        setTrainers(allTrainers);
+        saveTrainersList(allTrainers);
+
+        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
+          const mergedMembers = [...cloudMembers];
+          localMembers.forEach((lm) => {
+            const alreadyExists = mergedMembers.some(
+              (cm) => cm.id === lm.id || (cm.email && cm.email.toLowerCase() === lm.email?.toLowerCase())
+            );
+            if (!alreadyExists) mergedMembers.push(lm);
+          });
+          setMembers(mergedMembers);
+          saveMembersList(mergedMembers);
+        }
+      } catch (err) {
+        console.warn("Supabase trainers load error in Trainers.jsx:", err);
+      }
+    }
+
+    // 3. Optional Express REST API fallback
     try {
       const api = (await import("../../services/api")).default;
       const [trRes, memRes] = await Promise.allSettled([
@@ -90,6 +143,14 @@ export default function Trainers() {
   const handleRemoveMember = async (ath, trainerName) => {
     if (!window.confirm(`Remove ${ath.name} from ${trainerName}'s assigned roster?`)) return;
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(ath.id || ath._id, null);
+      } catch (e) {
+        console.warn("Supabase remove-trainer sync error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.post(`/members/${ath.id || ath._id}/remove-trainer`);
@@ -98,7 +159,7 @@ export default function Trainers() {
     }
 
     removeMemberFromTrainer(ath.id || ath._id);
-    refreshData();
+    await refreshData();
     setNotification(`✓ ${ath.name} removed from ${trainerName}'s roster.`);
     setTimeout(() => setNotification(""), 4000);
   };
@@ -108,6 +169,14 @@ export default function Trainers() {
     if (!assigningTrainer || !selectedMemberId) return;
 
     const trId = assigningTrainer.id || assigningTrainer._id;
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(selectedMemberId, trId);
+      } catch (e) {
+        console.warn("Supabase assign-trainer sync error:", e);
+      }
+    }
 
     try {
       const api = (await import("../../services/api")).default;
@@ -119,19 +188,27 @@ export default function Trainers() {
     }
 
     assignMemberToTrainer(selectedMemberId, trId);
-    refreshData();
+    await refreshData();
     setNotification(`✓ Member added to Coach ${assigningTrainer.name}'s roster.`);
     setAssigningTrainer(null);
     setSelectedMemberId("");
     setTimeout(() => setNotification(""), 4000);
   };
 
-  const handleDelete = (id) => {
-    if (window.confirm("Remove this trainer from active staff?")) {
-      const updated = trainers.filter((t) => t.id !== id);
-      setTrainers(updated);
-      saveTrainersList(updated);
+  const handleDelete = async (id) => {
+    if (!window.confirm("Remove this trainer from active staff?")) return;
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from("profiles").delete().eq("id", id);
+      } catch (e) {
+        console.warn("Supabase delete trainer error:", e);
+      }
     }
+
+    const updated = trainers.filter((t) => t.id !== id);
+    setTrainers(updated);
+    saveTrainersList(updated);
   };
 
   const handleEditSubmit = (e) => {
@@ -149,6 +226,22 @@ export default function Trainers() {
     setTrainerError("");
     setIsSubmitting(true);
 
+    if (isSupabaseConfigured()) {
+      try {
+        const { error: supaErr } = await supabase.from("profiles").insert({
+          name: newTrainer.name,
+          email: newTrainer.email,
+          phone: newTrainer.phone || null,
+          role: "trainer",
+          specialty: newTrainer.specialty || "Strength & Hypertrophy",
+          bio: `${newTrainer.experience || "5 years"} experience. Specialist in ${newTrainer.specialty || "athletics"}.`,
+        });
+        if (supaErr) console.warn("Supabase trainer insert:", supaErr.message);
+      } catch (err) {
+        console.warn("Supabase trainer creation fallback:", err.message);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       const res = await api.post("/trainers", {
@@ -161,7 +254,7 @@ export default function Trainers() {
       });
 
       if (res.data?.success && res.data?.trainer) {
-        await refreshTrainers();
+        await refreshData();
         setShowAddModal(false);
         setNewTrainer({
           name: "",
@@ -189,6 +282,7 @@ export default function Trainers() {
     const updated = [created, ...trainers];
     setTrainers(updated);
     saveTrainersList(updated);
+    await refreshData();
     setShowAddModal(false);
     setNewTrainer({
       name: "",
