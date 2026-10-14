@@ -23,8 +23,11 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../../components/DashboardLayout";
 import AttendanceModal from "../../components/AttendanceModal";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import supabaseService from "../../services/supabaseService";
 import {
   getMembersList,
+  saveMembersList,
   getAvailableProMembers,
   assignMemberToTrainer,
   removeMemberFromTrainer,
@@ -55,12 +58,38 @@ export default function TrainerMembers() {
   };
 
   const refreshData = async () => {
-    // 1. Local data
+    // 1. Initial Local state
     const localAll = getMembersList();
     setAllMembers(localAll);
     setAvailableProMembers(getAvailableProMembers());
 
-    // 2. Fetch from backend API
+    // 2. Query live Supabase Cloud database
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudMembers = await supabaseService.getAllMembers();
+        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
+          const map = new Map();
+          localAll.forEach((lm) => map.set(lm.id || lm.email, lm));
+          cloudMembers.forEach((cm) =>
+            map.set(cm.id || cm.email, { ...(map.get(cm.id || cm.email) || {}), ...cm })
+          );
+          const merged = Array.from(map.values());
+          setAllMembers(merged);
+          saveMembersList(merged);
+          setAvailableProMembers(
+            merged.filter(
+              (m) =>
+                (m.plan === "PRO" || m.plan === "PREMIUM" || m.membership === "PRO" || m.membership === "PREMIUM") &&
+                (!m.trainerId || m.trainer === "—" || !m.trainerName)
+            )
+          );
+        }
+      } catch (err) {
+        console.warn("Supabase fetch error in TrainerMembers:", err);
+      }
+    }
+
+    // 3. Fallback to backend API if running
     try {
       const api = (await import("../../services/api")).default;
       const [membersRes, proRes] = await Promise.allSettled([
@@ -68,7 +97,7 @@ export default function TrainerMembers() {
         api.get("/members/available-pro"),
       ]);
 
-      if (membersRes.status === "fulfilled" && membersRes.value.data?.success) {
+      if (membersRes.status === "fulfilled" && membersRes.value.data?.success && Array.isArray(membersRes.value.data.members)) {
         setAllMembers(
           membersRes.value.data.members.map((m) => ({
             ...m,
@@ -77,7 +106,7 @@ export default function TrainerMembers() {
         );
       }
 
-      if (proRes.status === "fulfilled" && proRes.value.data?.success) {
+      if (proRes.status === "fulfilled" && proRes.value.data?.success && Array.isArray(proRes.value.data.members)) {
         setAvailableProMembers(
           proRes.value.data.members.map((m) => ({
             ...m,
@@ -136,6 +165,14 @@ export default function TrainerMembers() {
   const handleClaimProMember = async (member) => {
     const mId = member.id || member._id;
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(mId, currentUser._id || trainerId);
+      } catch (e) {
+        console.warn("Supabase claim athlete error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.post(`/members/${mId}/assign-trainer`, {
@@ -146,7 +183,7 @@ export default function TrainerMembers() {
     }
 
     assignMemberToTrainer(mId, currentUser._id || trainerId);
-    refreshData();
+    await refreshData();
     setNotification(`✓ Success! ${member.name} has been added to your assigned athletes roster.`);
     setTimeout(() => setNotification(""), 4000);
     setActiveTab("my_athletes");
@@ -158,6 +195,14 @@ export default function TrainerMembers() {
 
     const mId = member.id || member._id;
 
+    if (isSupabaseConfigured()) {
+      try {
+        await supabaseService.assignTrainer(mId, null);
+      } catch (e) {
+        console.warn("Supabase remove athlete error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       await api.post(`/members/${mId}/remove-trainer`);
@@ -166,7 +211,7 @@ export default function TrainerMembers() {
     }
 
     removeMemberFromTrainer(mId);
-    refreshData();
+    await refreshData();
     setNotification(`↺ ${member.name} removed from your roster.`);
     setTimeout(() => setNotification(""), 4000);
   };

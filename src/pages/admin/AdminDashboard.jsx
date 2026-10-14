@@ -109,15 +109,15 @@ export default function AdminDashboard() {
           api.get("/trainers"),
           api.get("/memberships"),
         ]);
-        if (mRes.status === "fulfilled") {
+        if (mRes.status === "fulfilled" && mRes.value?.data?.success) {
           const list = mRes.value?.data?.members || mRes.value?.data?.data || [];
           if (Array.isArray(list) && list.length > 0) setMembers(list);
         }
-        if (tRes.status === "fulfilled") {
+        if (tRes.status === "fulfilled" && tRes.value?.data?.success) {
           const list = tRes.value?.data?.trainers || tRes.value?.data?.data || [];
           if (Array.isArray(list) && list.length > 0) setTrainers(list);
         }
-        if (reqRes.status === "fulfilled") {
+        if (reqRes.status === "fulfilled" && reqRes.value?.data?.success) {
           const list = reqRes.value?.data?.requests || reqRes.value?.data?.data || [];
           if (Array.isArray(list) && list.length > 0) setMemberships(list);
         }

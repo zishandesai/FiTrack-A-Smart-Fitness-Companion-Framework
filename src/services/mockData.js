@@ -1552,17 +1552,26 @@ export const assignMemberToTrainer = (memberIdentifier, trainerIdentifier, train
 
   saveMembersList(members);
 
-  // 3. Always synchronize active user in localStorage
-  currentUser.trainerId = trainerPayload.trainerId;
-  currentUser.trainerName = trainerPayload.trainerName;
-  currentUser.trainer = trainerPayload.trainerName;
-  currentUser.trainerSpecialty = trainerPayload.trainerSpecialty;
-  currentUser.trainerEmail = trainerPayload.trainerEmail;
-  currentUser.trainerPhone = trainerPayload.trainerPhone;
-  currentUser.membership = currentUser.membership || "PRO";
-  currentUser.membershipStatus = "active";
-  currentUser.plan = currentUser.plan || "PRO";
-  localStorage.setItem("fittrack_user", JSON.stringify(currentUser));
+  // 3. Synchronize active user in localStorage ONLY IF current user is this member
+  if (
+    currentUser &&
+    currentUser.role === "member" &&
+    (currentUser.id === memberIdentifier ||
+      currentUser._id === memberIdentifier ||
+      (currentUser.email && currentUser.email.toLowerCase() === mStr) ||
+      (currentUser.name && currentUser.name.toLowerCase() === mStr))
+  ) {
+    currentUser.trainerId = trainerPayload.trainerId;
+    currentUser.trainerName = trainerPayload.trainerName;
+    currentUser.trainer = trainerPayload.trainerName;
+    currentUser.trainerSpecialty = trainerPayload.trainerSpecialty;
+    currentUser.trainerEmail = trainerPayload.trainerEmail;
+    currentUser.trainerPhone = trainerPayload.trainerPhone;
+    currentUser.membership = currentUser.membership || "PRO";
+    currentUser.membershipStatus = "active";
+    currentUser.plan = currentUser.plan || "PRO";
+    localStorage.setItem("fittrack_user", JSON.stringify(currentUser));
+  }
 
   // 4. Also ensure trainers list preserves this trainer
   const existingTrIndex = trainers.findIndex((t) => t.id === trainer.id || t._id === trainer._id || t.name === trainer.name);
@@ -1605,13 +1614,15 @@ export const removeMemberFromTrainer = (memberIdentifier) => {
 
   saveMembersList(updatedMembers);
 
-  // Sync active logged-in user
+  // Sync active logged-in user ONLY if current user is this member
   const currentUser = JSON.parse(localStorage.getItem("fittrack_user") || "{}");
   if (
-    !currentUser.role ||
-    currentUser.role === "member" ||
-    (currentUser.email && currentUser.email.toLowerCase() === mStr) ||
-    (currentUser.name && currentUser.name.toLowerCase() === mStr)
+    currentUser &&
+    currentUser.role === "member" &&
+    ((currentUser.email && currentUser.email.toLowerCase() === mStr) ||
+      (currentUser.name && currentUser.name.toLowerCase() === mStr) ||
+      currentUser.id === memberIdentifier ||
+      currentUser._id === memberIdentifier)
   ) {
     currentUser.trainerId = null;
     currentUser.trainerName = null;

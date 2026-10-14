@@ -103,19 +103,52 @@ export const supabaseService = {
   },
 
   async getCurrentProfile(userId) {
-    if (!isSupabaseConfigured()) return null;
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*, trainer:trainer_id(id, name, specialty)")
-      .eq("id", userId)
-      .single();
+    if (!isSupabaseConfigured() || !userId) return null;
+    try {
+      let profile = null;
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*, trainer:trainer_id(id, name, specialty)")
+        .eq("id", userId)
+        .maybeSingle();
 
-    if (error) return null;
-    return {
-      ...data,
-      trainerName: data?.trainer?.name || null,
-      trainerSpecialty: data?.trainer?.specialty || null,
-    };
+      if (!error && data) {
+        profile = data;
+      } else {
+        const { data: simpleData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", userId)
+          .maybeSingle();
+        profile = simpleData;
+      }
+
+      if (!profile) return null;
+
+      let resolvedTrainerName = profile.trainer?.name || null;
+      let resolvedTrainerSpecialty = profile.trainer?.specialty || null;
+
+      if (!resolvedTrainerName && profile.trainer_id) {
+        const { DEFAULT_CERTIFIED_TRAINERS } = await import("./mockData");
+        const matchCoach = DEFAULT_CERTIFIED_TRAINERS.find(
+          (c) => c.id === profile.trainer_id || c._id === profile.trainer_id || c.name.toLowerCase() === String(profile.trainer_id).toLowerCase()
+        );
+        if (matchCoach) {
+          resolvedTrainerName = matchCoach.name;
+          resolvedTrainerSpecialty = matchCoach.specialty;
+        }
+      }
+
+      return {
+        ...profile,
+        trainer: resolvedTrainerName,
+        trainerName: resolvedTrainerName,
+        trainerSpecialty: resolvedTrainerSpecialty,
+      };
+    } catch (e) {
+      console.warn("getCurrentProfile error:", e);
+      return null;
+    }
   },
 
   async updateProfile(userId, updates) {
@@ -413,9 +446,26 @@ export const supabaseService = {
         list = fallback;
       }
 
+      const { DEFAULT_CERTIFIED_TRAINERS } = await import("./mockData");
+
       return list.map((m) => {
         const membership = Array.isArray(m.memberships) ? m.memberships[0] : (m.membership || null);
-        const resolvedTrainer = m.trainer?.name || m.trainerName || (m.trainer_id ? "Assigned Coach" : "—");
+        let resolvedTrainer = m.trainer?.name || m.trainerName;
+        let resolvedSpecialty = m.trainer?.specialty || m.trainerSpecialty;
+
+        if (!resolvedTrainer && m.trainer_id) {
+          const matchCoach = DEFAULT_CERTIFIED_TRAINERS.find(
+            (c) => c.id === m.trainer_id || c._id === m.trainer_id || c.name.toLowerCase() === String(m.trainer_id).toLowerCase()
+          );
+          if (matchCoach) {
+            resolvedTrainer = matchCoach.name;
+            resolvedSpecialty = matchCoach.specialty;
+          } else {
+            resolvedTrainer = "Assigned Coach";
+          }
+        }
+        if (!resolvedTrainer) resolvedTrainer = "—";
+
         return {
           ...m,
           id: m.id,
@@ -427,8 +477,8 @@ export const supabaseService = {
           plan: membership?.plan || m.plan || "PRO",
           membershipStatus: membership?.status || m.membershipStatus || "active",
           trainer: resolvedTrainer,
-          trainerName: m.trainer?.name || m.trainerName || null,
-          trainerSpecialty: m.trainer?.specialty || null,
+          trainerName: resolvedTrainer !== "—" ? resolvedTrainer : null,
+          trainerSpecialty: resolvedSpecialty || null,
           trainerId: m.trainer_id || null,
           goal: m.goal || "Build Muscle",
           weight: m.weight || 70,
@@ -448,50 +498,59 @@ export const supabaseService = {
   },
 
   async getAllTrainers() {
-    if (!isSupabaseConfigured()) return [];
-    try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("role", "trainer")
-        .order("created_at", { ascending: false });
+    let cloudList = [];
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("role", "trainer")
+          .order("created_at", { ascending: false });
 
-      if (error || !Array.isArray(data)) {
-        console.warn("getAllTrainers fetch warning:", error);
-        return [];
+        if (!error && Array.isArray(data)) {
+          cloudList = data.map((t) => ({
+            ...t,
+            id: t.id,
+            _id: t.id,
+            name: t.name || (t.email ? t.email.split("@")[0] : "Coach"),
+            email: t.email,
+            phone: t.phone || "—",
+            specialty: t.specialty || "Strength & Hypertrophy",
+            experience: t.experience || "5+ years",
+            rating: t.rating || 5.0,
+            clients: 0,
+            status: "Active",
+            bio: t.bio || "Certified coach specializing in biomechanics & strength progression.",
+          }));
+        }
+      } catch (e) {
+        console.warn("getAllTrainers error:", e);
       }
-
-      return data.map((t) => ({
-        ...t,
-        id: t.id,
-        _id: t.id,
-        name: t.name || (t.email ? t.email.split("@")[0] : "Coach"),
-        email: t.email,
-        phone: t.phone || "—",
-        specialty: t.specialty || "Strength & Hypertrophy",
-        experience: t.experience || "5+ years",
-        rating: t.rating || 5.0,
-        clients: 0,
-        status: "Active",
-        bio: t.bio || "Certified coach specializing in biomechanics & strength progression.",
-      }));
-    } catch (e) {
-      console.warn("getAllTrainers error:", e);
-      return [];
     }
+
+    // Always merge certified staff so trainers NEVER disappear on any device
+    const { DEFAULT_CERTIFIED_TRAINERS } = await import("./mockData");
+    const trMap = new Map();
+    DEFAULT_CERTIFIED_TRAINERS.forEach((dt) => trMap.set(dt.id, dt));
+    cloudList.forEach((ct) => trMap.set(ct.id, { ...(trMap.get(ct.id) || {}), ...ct }));
+    return Array.from(trMap.values());
   },
 
   async assignTrainer(memberId, trainerId) {
     if (!isSupabaseConfigured()) return null;
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ trainer_id: trainerId })
-      .eq("id", memberId)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ trainer_id: trainerId })
+        .eq("id", memberId)
+        .select();
 
-    if (error) throw error;
-    return data;
+      if (error) console.warn("Supabase assignTrainer warning:", error.message);
+      return data;
+    } catch (e) {
+      console.warn("Supabase assignTrainer exception:", e.message);
+      return null;
+    }
   },
 };
 

@@ -90,6 +90,21 @@ export default function MemberDashboard() {
         setAssignedCoach(freshLocal.trainerName || freshLocal.trainer);
       }
 
+      // Check live Supabase Cloud profile
+      try {
+        const { isSupabaseConfigured } = await import("../../lib/supabase");
+        const { default: supabaseService } = await import("../../services/supabaseService");
+        if (isSupabaseConfigured() && (user?.id || freshLocal.id)) {
+          const profile = await supabaseService.getCurrentProfile(user?.id || freshLocal.id);
+          if (profile?.trainerName || profile?.trainer) {
+            setAssignedCoach(profile.trainerName || profile.trainer);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
       try {
         const api = (await import("../../services/api")).default;
         const res = await api.get("/chat/contacts");

@@ -16,11 +16,15 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import DashboardLayout from "../../components/DashboardLayout";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import supabaseService from "../../services/supabaseService";
 import {
   getTrainersList,
+  saveTrainersList,
   assignMemberToTrainer,
   removeMemberFromTrainer,
   getMembersList,
+  saveMembersList,
 } from "../../services/mockData";
 
 export default function MemberCoaches() {
@@ -43,8 +47,24 @@ export default function MemberCoaches() {
     currentUser.membershipStatus === "active";
 
   const fetchTrainers = async () => {
+    // 1. Initial Local trainers
     const localTrainers = getTrainersList();
     setTrainers(localTrainers);
+
+    // 2. Fetch live coaches from Supabase
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudTrainers = await supabaseService.getAllTrainers();
+        if (Array.isArray(cloudTrainers) && cloudTrainers.length > 0) {
+          setTrainers(cloudTrainers);
+          saveTrainersList(cloudTrainers);
+        }
+      } catch (err) {
+        console.warn("Supabase fetch trainers error:", err);
+      }
+    }
+
+    // 3. Fallback to express API if running
     try {
       const api = (await import("../../services/api")).default;
       const res = await api.get("/trainers");
@@ -62,6 +82,26 @@ export default function MemberCoaches() {
   };
 
   const syncCurrentUser = async () => {
+    const localUser = JSON.parse(localStorage.getItem("fittrack_user") || "{}");
+
+    // 1. Query live Supabase profile for current user
+    if (isSupabaseConfigured() && localUser.id) {
+      try {
+        const cloudProfile = await supabaseService.getCurrentProfile(localUser.id);
+        if (cloudProfile) {
+          localUser.trainerId = cloudProfile.trainer_id || cloudProfile.trainerId || localUser.trainerId;
+          localUser.trainer = cloudProfile.trainer || cloudProfile.trainerName || localUser.trainer;
+          localUser.trainerName = cloudProfile.trainerName || cloudProfile.trainer || localUser.trainerName;
+          localUser.trainerSpecialty = cloudProfile.trainerSpecialty || localUser.trainerSpecialty;
+          localStorage.setItem("fittrack_user", JSON.stringify(localUser));
+          setCurrentUser({ ...localUser });
+          return;
+        }
+      } catch (e) {
+        console.warn("Supabase profile sync error:", e);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
       const res = await api.get("/auth/me");
@@ -75,7 +115,6 @@ export default function MemberCoaches() {
       // Fallback
     }
 
-    const localUser = JSON.parse(localStorage.getItem("fittrack_user") || "{}");
     // Also check members list to get synced trainer
     const members = getMembersList();
     const mem = members.find((m) => m.email === localUser.email || m.name === localUser.name);
@@ -111,19 +150,32 @@ export default function MemberCoaches() {
     localUser.membership = "PRO";
     localUser.membershipStatus = "active";
     localUser.plan = "PRO";
+    localUser.trainerId = trainer.id || trainer._id;
+    localUser.trainerName = trainer.name;
+    localUser.trainerSpecialty = trainer.specialty;
     localStorage.setItem("fittrack_user", JSON.stringify(localUser));
+
+    const memberId = currentUser.id || currentUser._id;
+    const trainerId = trainer.id || trainer._id;
+
+    if (isSupabaseConfigured() && memberId) {
+      try {
+        await supabaseService.assignTrainer(memberId, trainerId);
+      } catch (err) {
+        console.warn("Supabase assignCoach error:", err);
+      }
+    }
 
     try {
       const api = (await import("../../services/api")).default;
-      const memberId = currentUser.id || currentUser._id;
       if (memberId) {
-        await api.post(`/members/${memberId}/assign-trainer`, { trainerId: trainer.id || trainer._id });
+        await api.post(`/members/${memberId}/assign-trainer`, { trainerId });
       }
     } catch {
       // Local fallback
     }
 
-    assignMemberToTrainer(currentUser.id || currentUser.email || currentUser.name, trainer.id || trainer._id, trainer);
+    assignMemberToTrainer(currentUser.id || currentUser.email || currentUser.name, trainerId, trainer);
     await syncCurrentUser();
     setNotification({
       text: `Congratulations! Coach ${trainer.name} is now your personal trainer.`,
@@ -137,9 +189,18 @@ export default function MemberCoaches() {
       return;
     }
 
+    const memberId = currentUser.id || currentUser._id;
+
+    if (isSupabaseConfigured() && memberId) {
+      try {
+        await supabaseService.assignTrainer(memberId, null);
+      } catch (err) {
+        console.warn("Supabase cancel coach error:", err);
+      }
+    }
+
     try {
       const api = (await import("../../services/api")).default;
-      const memberId = currentUser.id || currentUser._id;
       if (memberId) {
         await api.post(`/members/${memberId}/remove-trainer`);
       }

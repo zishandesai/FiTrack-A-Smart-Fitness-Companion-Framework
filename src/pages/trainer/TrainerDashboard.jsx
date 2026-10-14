@@ -23,8 +23,11 @@ import {
 import DashboardLayout from "../../components/DashboardLayout";
 import StatCard from "../../components/StatCard";
 import AttendanceModal from "../../components/AttendanceModal";
+import { isSupabaseConfigured } from "../../lib/supabase";
+import supabaseService from "../../services/supabaseService";
 import {
   getMembersList,
+  saveMembersList,
   getMemberWorkoutStatus,
   getTrainerNotifications,
   getAssignedWorkout,
@@ -51,16 +54,35 @@ export default function TrainerDashboard() {
   };
 
   const refreshData = async () => {
-    // 1. Local data with latest workout status
+    // 1. Initial Local data
     const local = getMembersList();
     setMembers([...local]);
     setNotifications(getTrainerNotifications());
 
-    // 2. Fetch backend members if connected
+    // 2. Fetch live Supabase Cloud members
+    if (isSupabaseConfigured()) {
+      try {
+        const cloudMembers = await supabaseService.getAllMembers();
+        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
+          const map = new Map();
+          local.forEach((m) => map.set(m.id || m.email, m));
+          cloudMembers.forEach((m) =>
+            map.set(m.id || m.email, { ...(map.get(m.id || m.email) || {}), ...m })
+          );
+          const merged = Array.from(map.values());
+          setMembers(merged);
+          saveMembersList(merged);
+        }
+      } catch (err) {
+        console.warn("Supabase fetch error in TrainerDashboard:", err);
+      }
+    }
+
+    // 3. Fetch backend members if connected
     try {
       const api = (await import("../../services/api")).default;
       const res = await api.get("/members");
-      if (res.data?.success && res.data?.members) {
+      if (res.data?.success && Array.isArray(res.data?.members) && res.data.members.length > 0) {
         setMembers(
           res.data.members.map((m) => ({
             ...m,
