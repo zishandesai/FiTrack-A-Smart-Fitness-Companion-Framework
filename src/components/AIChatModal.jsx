@@ -229,7 +229,7 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
         text: data.reply || "I analyzed your food and fitness query.",
         toolUsed: data.toolUsed || (data.foodData ? "analyzeFoodNutritionVision" : null),
         toolData: data.toolData || data.foodData || null,
-        source: data.source || (imageToSend ? "gemini-2.0-flash-food-vision" : "langchain-gemini-tools"),
+        source: data.source || (imageToSend ? "gemini-flash-latest-food-vision" : "langchain-gemini-tools"),
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 

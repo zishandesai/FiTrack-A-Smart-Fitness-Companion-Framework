@@ -371,7 +371,7 @@ export const chatWithLangChain = async ({ message, history = [], userContext = {
   if (apiKey && apiKey.trim() !== "") {
     try {
       const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-2.0-flash",
+        model: "gemini-flash-latest",
         apiKey,
         maxRetries: 0,
         timeout: 5000,
@@ -672,7 +672,7 @@ export async function generateSetSummaryWithLangChain({
     if (apiKey) {
       const model = new ChatGoogleGenerativeAI({
         apiKey,
-        model: "gemini-2.0-flash",
+        model: "gemini-flash-latest",
         maxRetries: 0,
         timeout: 5000,
         temperature: 0.2,

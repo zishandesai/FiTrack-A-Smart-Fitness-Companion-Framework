@@ -88,9 +88,9 @@ STRICT DOMAIN GUIDELINES:
       parts: currentParts,
     });
 
-    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash", "gemini-1.5-pro"];
+    const modelsToTry = ["gemini-flash-latest", "gemini-3.5-flash-lite", "gemini-pro-latest"];
     let generatedText = "";
-    let usedModel = "gemini-2.0-flash";
+    let usedModel = "gemini-flash-latest";
 
     if (apiKey && apiKey.trim() !== "") {
       for (const model of modelsToTry) {
