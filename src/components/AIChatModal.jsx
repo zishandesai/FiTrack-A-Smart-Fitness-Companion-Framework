@@ -176,6 +176,36 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
     setSelectedImage(null);
     setLoading(true);
 
+    const cleanText = textToSend.trim();
+    const isPureGreeting =
+      !imageToSend &&
+      /^(hi|hello|hey|yo|greetings|good\s*(morning|afternoon|evening)|sup)\b/i.test(cleanText) &&
+      cleanText.length < 40 &&
+      !/(macro|tdee|calorie|workout|exercise|diet|food|meal|protein|form|split|plan|squat|bench|pushup|curl)/i.test(cleanText);
+
+    // Instant fast-path for greetings: immediate response without remote API delays
+    if (isPureGreeting) {
+      setTimeout(() => {
+        const memberName = user?.name || "Athlete";
+        const weight = user?.weight || 70;
+        const goal = user?.goal || "General Fitness";
+        const coach = user?.trainerName || user?.trainer || "Coach Alex";
+
+        const aiMsg = {
+          id: `ai_${Date.now()}`,
+          role: "assistant",
+          text: `Hello **${memberName}**! I am your FIT-TRACK NutriCoach AI.\n\nYour biometric profile is active: **${weight}kg** bodyweight, targeted for **${goal}**, with **${coach}** on your protocol.\n\nHere is what I can compute for you:\n[1] Calculate exact TDEE and macro breakdown for your ${goal} target\n[2] Generate tailored daily meal plan (High-Protein, Vegetarian, or Balanced)\n[3] Review workout split and exercise form biomechanics\n[4] Upload a meal photo to inspect calories and macros\n\nWhat would you like to optimize today?`,
+          toolUsed: null,
+          toolData: null,
+          source: "fast-path-instant",
+          time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        };
+        setMessages((prev) => [...prev, aiMsg]);
+        setLoading(false);
+      }, 80);
+      return;
+    }
+
     try {
       const historyPayload = messages.slice(-8).map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
@@ -199,7 +229,7 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
         text: data.reply || "I analyzed your food and fitness query.",
         toolUsed: data.toolUsed || (data.foodData ? "analyzeFoodNutritionVision" : null),
         toolData: data.toolData || data.foodData || null,
-        source: data.source || (imageToSend ? "gemini-2.5-flash-food-vision" : "langchain-gemini-tools"),
+        source: data.source || (imageToSend ? "gemini-2.0-flash-food-vision" : "langchain-gemini-tools"),
         time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
@@ -224,7 +254,7 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
           fiber: 6,
           goalAlignment: "Optimal",
         };
-        fallbackReply = `### 🥗 Visual Food Nutrition Breakdown\nI evaluated your uploaded meal against your **${user?.goal || "Muscle Gain"}** target.\n\n**Detected Components:**\n• Grilled Chicken / Lean Protein (~160g)\n• Steamed Jasmine Rice / Quinoa (~1 cup)\n• Steamed Vegetables with Olive Oil (~100g)\n\n**Nutritional Assessment:**\nHigh biological value protein with moderate low-glycemic carbs for sustained glycogen replenishment.\n\n### 🥗 Estimated Nutrition Breakdown\n• **Identified Dish:** High-Protein Athlete Plate\n• **Total Calories:** ~520 kcal\n• **Protein:** ~42g\n• **Carbohydrates:** ~54g\n• **Fats:** ~12g\n• **Dietary Fiber:** ~6g\n• **Goal Alignment:** Optimal for ${user?.goal || "Muscle Gain"}`;
+        fallbackReply = `### Visual Food Nutrition Breakdown\nI evaluated your uploaded meal against your **${user?.goal || "Muscle Gain"}** target.\n\n**Detected Components:**\n• Grilled Chicken / Lean Protein (~160g)\n• Steamed Jasmine Rice / Quinoa (~1 cup)\n• Steamed Vegetables with Olive Oil (~100g)\n\n**Nutritional Assessment:**\nHigh biological value protein with moderate low-glycemic carbs for sustained glycogen replenishment.\n\n### Estimated Nutrition Breakdown\n• **Identified Dish:** High-Protein Athlete Plate\n• **Total Calories:** ~520 kcal\n• **Protein:** ~42g\n• **Carbohydrates:** ~54g\n• **Fats:** ~12g\n• **Dietary Fiber:** ~6g\n• **Goal Alignment:** Optimal for ${user?.goal || "Muscle Gain"}`;
       } else if (text.includes("macro") || text.includes("tdee") || text.includes("calorie")) {
         toolUsed = "calculateBiometricsAndMacros";
         toolData = {
@@ -254,6 +284,7 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
           text: fallbackReply,
           toolUsed,
           toolData,
+          source: "offline-fallback",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);

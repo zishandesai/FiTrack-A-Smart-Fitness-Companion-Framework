@@ -357,6 +357,13 @@ STRICT DOMAIN GUARDRAILS:
  * Main LangChain Chat Orchestrator
  */
 export const chatWithLangChain = async ({ message, history = [], userContext = {} }) => {
+  const cleanMsg = (message || "").trim().toLowerCase();
+  const isGreeting = /^(hi|hello|hey|yo|greetings|good morning|good afternoon|good evening|sup|help|who are you)\b/i.test(cleanMsg) &&
+    !/(macro|tdee|calorie|workout|exercise|diet|food|meal|protein|form|split|plan|squat|bench|pushup|curl)/i.test(cleanMsg);
+  if (isGreeting && cleanMsg.length < 40) {
+    return fallbackLangChainExecution(message, userContext);
+  }
+
   const tools = createLangChainTools(userContext);
   const systemPrompt = buildSystemPrompt(userContext);
   const apiKey = process.env.GEMINI_API_KEY;
@@ -364,8 +371,10 @@ export const chatWithLangChain = async ({ message, history = [], userContext = {
   if (apiKey && apiKey.trim() !== "") {
     try {
       const llm = new ChatGoogleGenerativeAI({
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash",
         apiKey,
+        maxRetries: 0,
+        timeout: 5000,
         temperature: 0.3,
       });
 
@@ -628,11 +637,11 @@ function fallbackLangChainExecution(message, userContext = {}) {
     reply: `Hello **${telemetry.memberName}**! I am your FIT-TRACK NutriCoach AI, equipped with LangChain computational tools.\n\n` +
       `I have your full biometric profile loaded (**${telemetry.weightKg}kg**, **${telemetry.goal}**, Coach: **${telemetry.trainerName}**).\n\n` +
       `Here is what I can compute for you right now:\n` +
-      `1. 📊 **Calculate exact TDEE & macro targets** for your ${telemetry.goal} goal\n` +
-      `2. 🥗 **Generate tailored meal plans** (Standard, Vegetarian, Vegan, Keto)\n` +
-      `3. 🏋️ **Inspect your assigned workout split & exercise details**\n` +
-      `4. ⚡ **Analyze exercise biomechanics & joint angles**\n` +
-      `5. 📈 **Review your gym attendance & form score history**\n\n` +
+      `[1] Calculate exact TDEE and macro targets for your ${telemetry.goal} goal\n` +
+      `[2] Generate tailored meal plans (Standard, Vegetarian, Vegan, Keto)\n` +
+      `[3] Inspect your assigned workout split and exercise details\n` +
+      `[4] Analyze exercise biomechanics and joint angles\n` +
+      `[5] Review your gym attendance and form score history\n\n` +
       `What would you like to optimize today?`,
     toolUsed: null,
     toolData: null,
@@ -663,7 +672,9 @@ export async function generateSetSummaryWithLangChain({
     if (apiKey) {
       const model = new ChatGoogleGenerativeAI({
         apiKey,
-        model: "gemini-2.5-flash",
+        model: "gemini-2.0-flash",
+        maxRetries: 0,
+        timeout: 5000,
         temperature: 0.2,
       });
 

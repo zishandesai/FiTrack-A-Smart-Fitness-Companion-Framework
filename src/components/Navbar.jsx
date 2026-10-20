@@ -171,10 +171,10 @@ export default function Navbar() {
             </div>
           ) : (
             <>
-              <Link className="nav-login" to="/login">
+              <Link className="nav-login" to="/login" aria-label="Log in to your account">
                 Login
               </Link>
-              <Link className="btn btn-primary nav-cta" to="/signup">
+              <Link className="btn btn-primary nav-cta" to="/signup" aria-label="Get Started - Create an account">
                 Get Started
                 <ArrowRight size={16} />
               </Link>
@@ -183,9 +183,11 @@ export default function Navbar() {
         </div>
 
         <button
+          type="button"
           className="mobile-menu-btn"
           onClick={() => setOpen(!open)}
-          aria-label="Toggle navigation"
+          aria-label={open ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={open}
         >
           {open ? <X size={22} /> : <Menu size={22} />}
         </button>

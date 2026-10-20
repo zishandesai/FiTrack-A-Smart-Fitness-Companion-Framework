@@ -152,27 +152,31 @@ export default function DashboardLayout({ children, title, subtitle }) {
             </div>
 
             <button
+              type="button"
               className="btn btn-secondary btn-xs dash-topbar-logout"
               onClick={handleLogout}
               title="Logout from Account"
+              aria-label="Logout from account"
             >
               Logout
             </button>
 
-            <Link to="/" className="dash-quick-home" title="View Public Landing Page">
+            <Link to="/" className="dash-quick-home" title="View Public Landing Page" aria-label="View public landing page">
               Public Site
             </Link>
           </div>
         </header>
 
         {/* Dynamic Page Content */}
-        <div className="dash-content-body">{children}</div>
+        <main id="main-content" className="dash-content-body">{children}</main>
 
         {/* Floating AI NutriCoach Launcher Button */}
         <button
+          type="button"
           className="floating-ai-launcher-btn"
           onClick={() => setShowAIChat(true)}
           title="Open FIT-TRACK NutriCoach AI (Sports Nutrition & Biomechanics)"
+          aria-label="Open FIT-TRACK NutriCoach AI"
         >
           <div className="floating-ai-icon-pulse">
             <Brain size={18} />

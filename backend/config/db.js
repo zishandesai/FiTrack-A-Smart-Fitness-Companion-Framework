@@ -10,12 +10,15 @@ try {
 
 let isConnected = false;
 
+// Do not buffer operations when disconnected - prevents 10-30s hanging requests
+mongoose.set("bufferCommands", false);
+
 export const connectDB = async () => {
   const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/fittrack";
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 2500,
     });
 
     isConnected = true;

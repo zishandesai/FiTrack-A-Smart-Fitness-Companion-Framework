@@ -18,7 +18,7 @@ import {
   BarChart3,
   Users,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Navbar from "../components/Navbar";
 import aiPoseImg from "../assets/ai_pose_hud.jpg";
@@ -363,52 +363,71 @@ function DashPreview({ user }) {
 ═══════════════════════════════════════════ */
 export default function Home() {
   const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   useScrollReveal();
 
   return (
     <div className="home-page">
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <Navbar />
 
-      {/* ─── HERO ─── */}
-      <section className="hero">
-        <ParticleField />
-        <div className="hero-glow-orb hero-glow-1" />
-        <div className="hero-glow-orb hero-glow-2" />
+      <main id="main-content">
+        {/* ─── HERO ─── */}
+        <section className="hero">
+          <ParticleField />
+          <div className="hero-glow-orb hero-glow-1" />
+          <div className="hero-glow-orb hero-glow-2" />
 
-        <div className="container hero-grid">
-          <div className="hero-text" data-reveal>
-            <div className="hero-chip">
-              <Activity size={13} />
-              <span>AI-POWERED FITNESS PLATFORM</span>
-            </div>
+          <div className="container hero-grid">
+            <div className="hero-text" data-reveal>
+              <div className="hero-chip">
+                <Activity size={13} />
+                <span>AI-POWERED FITNESS PLATFORM</span>
+              </div>
 
-            <h1>
-              TRAIN<br />
-              <span className="grad-text">SMARTER.</span><br />
-              MOVE BETTER.<br />
-              <span className="grad-text">TRACK&nbsp;EVERYTHING.</span>
-            </h1>
+              <h1>
+                TRAIN<br />
+                <span className="grad-text">SMARTER.</span><br />
+                MOVE BETTER.<br />
+                <span className="grad-text">TRACK&nbsp;EVERYTHING.</span>
+              </h1>
 
-            <p className="hero-sub">
-              An intelligent fitness companion combining personalized workouts,
-              AI-assisted exercise form analysis and smart progress tracking.
-            </p>
+              <p className="hero-sub">
+                An intelligent fitness companion combining personalized workouts,
+                AI-assisted exercise form analysis and smart progress tracking.
+              </p>
 
-            <div className="hero-ctas">
-              {isAuthenticated && user ? (
-                <Link to={`/${user.role}`} className="btn btn-primary hero-btn">
-                  {user.role.toUpperCase()} Dashboard <ArrowRight size={17} />
-                </Link>
-              ) : (
-                <Link to="/signup" className="btn btn-primary hero-btn">
-                  Start Your Journey <ArrowRight size={17} />
-                </Link>
-              )}
-              <a href="#features" className="btn btn-glass hero-btn">
-                <span className="play-icon"><Play size={12} fill="currentColor" /></span>
-                Explore Features
-              </a>
-            </div>
+              <div className="hero-ctas">
+                {isAuthenticated && user ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/${user.role}`)}
+                    className="btn btn-primary hero-btn"
+                    aria-label={`Open ${user.role} Dashboard`}
+                  >
+                    {user.role.toUpperCase()} Dashboard <ArrowRight size={17} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/signup")}
+                    className="btn btn-primary hero-btn"
+                    aria-label="Start Your Journey - Sign up for Fit-Track"
+                  >
+                    Start Your Journey <ArrowRight size={17} />
+                  </button>
+                )}
+                <a
+                  href="#features"
+                  className="btn btn-glass hero-btn"
+                  aria-label="Explore Features - jump to system capabilities"
+                >
+                  <span className="play-icon"><Play size={12} fill="currentColor" /></span>
+                  Explore Features
+                </a>
+              </div>
 
             <div className="hero-trust" data-reveal data-delay={1}>
               <div className="trust-icon"><Activity size={16} /></div>
@@ -481,9 +500,16 @@ export default function Home() {
                   </div>
                 );
               })}
-              <Link to="/signup" className="btn btn-primary" data-reveal data-delay={3}>
+              <button
+                type="button"
+                onClick={() => navigate("/signup")}
+                className="btn btn-primary"
+                aria-label="Try AI Form Coach - Sign up for interactive pose analysis"
+                data-reveal
+                data-delay={3}
+              >
                 Try AI Form Coach <ArrowRight size={16} />
-              </Link>
+              </button>
             </div>
           </div>
         </div>
@@ -579,13 +605,28 @@ export default function Home() {
             <h2>YOUR STRONGER SELF<br /><span className="grad-text">STARTS HERE.</span></h2>
             <p>Train with purpose. Move with confidence. Track every step forward.</p>
             {isAuthenticated && user ? (
-              <Link to={`/${user.role}`} className="btn btn-primary">{user.role.toUpperCase()} Dashboard <ArrowRight size={17} /></Link>
+              <button
+                type="button"
+                onClick={() => navigate(`/${user.role}`)}
+                className="btn btn-primary"
+                aria-label={`Open ${user.role} Dashboard`}
+              >
+                {user.role.toUpperCase()} Dashboard <ArrowRight size={17} />
+              </button>
             ) : (
-              <Link to="/signup" className="btn btn-primary">Get Started <ArrowRight size={17} /></Link>
+              <button
+                type="button"
+                onClick={() => navigate("/signup")}
+                className="btn btn-primary"
+                aria-label="Get Started - Create an account"
+              >
+                Get Started <ArrowRight size={17} />
+              </button>
             )}
           </div>
         </div>
       </section>
+      </main>
 
       {/* ─── FOOTER ─── */}
       <footer className="footer" data-reveal>

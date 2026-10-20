@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { chatWithNutriCoach, analyzePoseVision, analyzeFoodVision } from "../services/aiService.js";
 import { chatWithLangChain, extractUserTelemetry } from "../services/langchainService.js";
 import AIAnalysis from "../models/AIAnalysis.js";
@@ -25,23 +26,26 @@ export const chatWithAI = async (req, res) => {
     let workout = null;
     let progress = null;
 
-    if (req.user) {
-      // Fetch fresh member record with populated trainer
-      member = await User.findById(req.user._id).select("-password").populate("trainerId", "name email phone specialty experience");
+    if (req.user && mongoose.connection.readyState === 1) {
+      try {
+        const [freshMember, latestMembership, latestWorkout, latestProgress] = await Promise.all([
+          User.findById(req.user._id).select("-password").populate("trainerId", "name email phone specialty experience").lean(),
+          Membership.findOne({ userId: req.user._id }).sort({ createdAt: -1 }).lean(),
+          Workout.findOne({ memberId: req.user._id }).sort({ createdAt: -1 }).lean(),
+          Progress.findOne({ memberId: req.user._id }).sort({ date: -1 }).lean(),
+        ]);
 
-      if (member) {
-        if (member.trainerId) {
-          trainer = member.trainerId;
+        if (freshMember) {
+          member = freshMember;
+          if (freshMember.trainerId) {
+            trainer = freshMember.trainerId;
+          }
+          membership = latestMembership;
+          workout = latestWorkout;
+          progress = latestProgress;
         }
-
-        // Fetch member's latest active membership
-        membership = await Membership.findOne({ userId: member._id }).sort({ createdAt: -1 });
-
-        // Fetch member's latest assigned workout split
-        workout = await Workout.findOne({ memberId: member._id }).sort({ createdAt: -1 });
-
-        // Fetch member's latest biometric progress record
-        progress = await Progress.findOne({ memberId: member._id }).sort({ date: -1 });
+      } catch (dbErr) {
+        console.warn("[AI Controller DB Warning] Non-blocking DB fetch error:", dbErr.message);
       }
     }
 
