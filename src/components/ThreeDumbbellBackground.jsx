@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { Sparkles, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function ThreeDumbbellBackground({ opacity = 0.42, interactive = true, showControls = false }) {
   const mountRef = useRef(null);

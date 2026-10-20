@@ -8,7 +8,7 @@ import {
   User,
   Clock,
   Calendar,
-  Sparkles,
+  QrCode,
   ArrowRight,
   Flame,
   Dumbbell,
@@ -187,7 +187,7 @@ export default function TurnstileCheckIn() {
 
               <div className="flex justify-between items-center text-xs">
                 <span className="text-muted flex items-center gap-1.5">
-                  <Sparkles size={13} className="text-cyan" /> Turnstile Method
+                  <QrCode size={13} className="text-cyan" /> Turnstile Method
                 </span>
                 <span className="text-cyan font-semibold">QR Mobile Scan</span>
               </div>

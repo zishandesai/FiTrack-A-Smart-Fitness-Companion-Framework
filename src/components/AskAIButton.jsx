@@ -1,4 +1,4 @@
-import { Sparkles, Brain } from "lucide-react";
+import { Brain } from "lucide-react";
 
 export default function AskAIButton({
   prompt = "",
@@ -25,7 +25,6 @@ export default function AskAIButton({
     >
       <Brain size={size === "xs" ? 11 : size === "sm" ? 13 : 15} className="ai-icon-pulse" />
       <span>{label}</span>
-      <Sparkles size={size === "xs" ? 10 : 11} className="ai-sparkle-icon" />
     </button>
   );
 }

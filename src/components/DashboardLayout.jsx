@@ -5,7 +5,7 @@ import {
   Brain,
   LayoutDashboard,
   Dumbbell,
-  Sparkles,
+  Camera,
   User,
   Users,
   ShieldCheck,
@@ -65,7 +65,7 @@ export default function DashboardLayout({ children, title, subtitle }) {
       { label: "Dashboard", path: "/member", icon: LayoutDashboard },
       { label: "Workout", path: "/member/workout", icon: Dumbbell },
       { label: "NutriCoach", path: "/member/nutricoach", icon: Brain },
-      { label: "AI Form", path: "/member/ai-coach", icon: Sparkles },
+      { label: "AI Form", path: "/member/ai-coach", icon: Camera },
       { label: "Profile", path: "/member/profile", icon: User },
     ],
     trainer: [
@@ -178,7 +178,6 @@ export default function DashboardLayout({ children, title, subtitle }) {
             <Brain size={18} />
           </div>
           <span className="font-semibold floating-ai-label">NutriCoach AI</span>
-          <span className="floating-ai-sparkle">✨</span>
         </button>
 
         {/* NutriCoach AI Modal */}

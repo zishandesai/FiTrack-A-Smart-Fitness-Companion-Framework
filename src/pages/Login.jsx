@@ -7,7 +7,7 @@ import {
   LockKeyhole,
   Mail,
   ShieldCheck,
-  Sparkles,
+  Cpu,
   AlertCircle,
   Loader2,
 } from "lucide-react";
@@ -75,7 +75,7 @@ export default function Login() {
 
         <div className="auth-visual-content">
           <div className="auth-ai-badge">
-            <Sparkles size={13} />
+            <Cpu size={13} />
             SMART FITNESS TECHNOLOGY
           </div>
 
@@ -242,7 +242,7 @@ export default function Login() {
                 }}
                 title="Fill Admin credentials"
               >
-                👑 Admin
+                Admin
               </button>
 
               <button
@@ -255,7 +255,7 @@ export default function Login() {
                 }}
                 title="Fill Trainer credentials"
               >
-                🏋️ Trainer
+                Trainer
               </button>
 
               <button
@@ -268,7 +268,7 @@ export default function Login() {
                 }}
                 title="Fill Member credentials"
               >
-                ⚡ Member
+                Member
               </button>
             </div>
           </div>
@@ -282,6 +282,12 @@ export default function Login() {
           <p className="auth-signup">
             Don't have an account? <Link to="/signup">Create Member or Trainer Account</Link>
           </p>
+
+          <div className="flex justify-center items-center gap-3 mt-4 text-[11px] text-muted">
+            <Link to="/terms" className="hover:underline">Terms of Service</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:underline">Privacy Policy</Link>
+          </div>
         </div>
       </div>
     </div>

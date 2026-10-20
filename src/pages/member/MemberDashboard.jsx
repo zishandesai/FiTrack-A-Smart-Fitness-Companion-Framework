@@ -8,7 +8,6 @@ import {
   ArrowRight,
   Brain,
   CheckCircle2,
-  Sparkles,
   Banknote,
   MessageSquare,
   QrCode,
@@ -26,6 +25,7 @@ import StatCard from "../../components/StatCard";
 import ProgressChart from "../../components/ProgressChart";
 import ThreeBiomechanics from "../../components/ThreeBiomechanics";
 import AskAIButton from "../../components/AskAIButton";
+import { SkeletonMetricGrid, SkeletonCard } from "../../components/SkeletonLoader";
 import { useAuth } from "../../context/AuthContext";
 import {
   getMemberships,
@@ -67,6 +67,7 @@ export default function MemberDashboard() {
     const rec = getMemberAttendanceRecord(userName);
     return rec?.attendanceRate ?? user?.attendance ?? 0;
   });
+  const [showMobileAnatomy, setShowMobileAnatomy] = useState(false);
 
   useEffect(() => {
     const allMemberships = getMemberships();
@@ -198,8 +199,8 @@ export default function MemberDashboard() {
 
   return (
     <DashboardLayout
-      title={`Good morning, ${userName}`}
-      subtitle={`${todayDateFormatted} • Ready to crush today's training?`}
+      title={userName}
+      subtitle={todayDateFormatted}
     >
       <div className="athlete-dashboard-container">
         {/* ATHLETE HERO BANNER & GYM PASS */}
@@ -208,7 +209,7 @@ export default function MemberDashboard() {
             <div className="athlete-status-strip">
               <span className={`athlete-status-badge ${isActive ? "active" : isPending ? "pending" : "expired"}`}>
                 <span className="dot" />
-                {isActive ? "Active Gym Member" : isPending ? "Verification Pending" : "Plan Expired"}
+                {isActive ? "Active Member" : isPending ? "Verification Pending" : "Pass Expired"}
               </span>
 
               <span className="athlete-plan-pill">{membershipData?.plan || "PRO"} PASS</span>
@@ -216,7 +217,7 @@ export default function MemberDashboard() {
 
             <h2 className="athlete-hero-heading">
               {isActive
-                ? `Welcome back to the gym floor, ${userName}!`
+                ? "Gym Floor Access Active"
                 : isPending
                 ? "Payment Verification Underway"
                 : "Membership Renewal Required"}
@@ -224,13 +225,8 @@ export default function MemberDashboard() {
 
             <p className="athlete-hero-sub">
               {isPending
-                ? "Cash payment recorded for front desk verification. Your full access will activate shortly."
-                : (() => {
-                    const days = calculateDaysRemaining(membershipData?.endDate);
-                    if (days < 0) return "Your pass has expired. Please visit the reception desk to renew.";
-                    if (days === 0) return "Expires today! Please renew at the front desk to avoid interruption.";
-                    return `${formatExpiryRemaining(membershipData?.endDate)} remaining • Full access to gym floor & AI Form Coach`;
-                  })()}
+                ? "Front desk verification pending."
+                : `${formatExpiryRemaining(membershipData?.endDate)} remaining • Access active`}
             </p>
           </div>
 
@@ -376,10 +372,10 @@ export default function MemberDashboard() {
 
             <p className="athlete-card-desc">
               {workout?.exercises && workout.exercises.length > 0 && workout.exercises.every((e) => e.completed)
-                ? "✓ All exercises completed for today! Your coach has received your workout log."
+                ? "All exercises completed today."
                 : workout?.name
-                ? "Targeted hypertrophy & progressive overload routine assigned for today."
-                : "Follow your assigned training split or log custom sets."}
+                ? "Assigned training split."
+                : "Follow your routine or log custom sets."}
             </p>
 
             {/* Exercise Checklist */}
@@ -482,10 +478,10 @@ export default function MemberDashboard() {
                     }}
                   />
                 </div>
-                <p className="text-[11px] text-muted mt-1.5">
+                <p className="text-[11px] text-muted mt-1.5 font-mono">
                   {user?.targetWeight
-                    ? `Current weight is ${curWeight} kg. Working towards your target of ${tgtWeight} kg.`
-                    : `Set your target weight goal in your profile to enable automatic progress forecasting.`}
+                    ? `Current: ${curWeight} kg • Target: ${tgtWeight} kg`
+                    : `Goal milestone tracking active`}
                 </p>
               </div>
             </div>
@@ -520,7 +516,21 @@ export default function MemberDashboard() {
 
         {/* 3D ANATOMICAL BIOMECHANICS & MOVEMENT TARGETING */}
         <section className="mt-4">
-          <ThreeBiomechanics targetMuscle="Chest" />
+          <div className="flex justify-between items-center mb-2 px-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted flex items-center gap-1.5">
+              <Activity size={14} className="text-cyan" /> 3D Biomechanics & Muscle Targeting
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-xs md:hidden"
+              onClick={() => setShowMobileAnatomy((prev) => !prev)}
+            >
+              {showMobileAnatomy ? "Collapse 3D View" : "Expand 3D Model"}
+            </button>
+          </div>
+          <div className={showMobileAnatomy ? "block" : "hidden md:block"}>
+            <ThreeBiomechanics targetMuscle="Chest" />
+          </div>
         </section>
 
         {/* MEMBERSHIP PLAN CHANGE MODAL */}

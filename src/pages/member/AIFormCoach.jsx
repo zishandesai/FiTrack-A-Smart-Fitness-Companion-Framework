@@ -7,7 +7,6 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  Sparkles,
   Brain,
   CheckCircle2,
   AlertTriangle,
@@ -83,49 +82,42 @@ const POSITIONING_STABILITY_FRAMES = 30; // Frames (~1s at 30fps) of clean postu
 const EXERCISE_POSITIONING_GUIDES = {
   squat: {
     recommendedView: "Side-On (Profile View)",
-    icon: "📐",
     cue: "Stand sideways (profile view) ~6-8 feet away so your full body (shoulder to ankle) is visible.",
     keyLandmarks: [L.R_SHOULDER, L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_SHOULDER, L.L_HIP, L.L_KNEE, L.L_ANKLE],
     requireEitherSide: true,
   },
   deadlift: {
     recommendedView: "Side-On (Profile View)",
-    icon: "📐",
     cue: "Turn sideways to camera ~6-8 feet back to capture spine angle and hip hinge depth.",
     keyLandmarks: [L.R_SHOULDER, L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_SHOULDER, L.L_HIP, L.L_KNEE, L.L_ANKLE],
     requireEitherSide: true,
   },
   lunge: {
     recommendedView: "Side-On (Profile View)",
-    icon: "📐",
     cue: "Turn sideways to camera so knee travel and shin verticality can be tracked.",
     keyLandmarks: [L.R_HIP, L.R_KNEE, L.R_ANKLE, L.L_HIP, L.L_KNEE, L.L_ANKLE],
     requireEitherSide: true,
   },
   bicep_curl: {
     recommendedView: "Front-On View",
-    icon: "🧍",
     cue: "Face camera ~5-6 feet away with shoulders, elbows, and wrists clearly inside the frame.",
     keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
     requireEitherSide: false,
   },
   pushup: {
     recommendedView: "Side-On (Profile View)",
-    icon: "📐",
     cue: "Position camera at low/floor level sideways to capture full horizontal plank posture.",
     keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.R_HIP, L.R_ANKLE],
     requireEitherSide: true,
   },
   shoulder_press: {
     recommendedView: "Front or 45° Angle",
-    icon: "🧍",
     cue: "Face camera with full upper body and complete overhead lockout clearance visible.",
     keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
     requireEitherSide: false,
   },
   lateral_raise: {
     recommendedView: "Front-On View",
-    icon: "🧍",
     cue: "Stand facing camera with enough lateral clearance to raise both arms horizontally.",
     keyLandmarks: [L.R_SHOULDER, L.R_ELBOW, L.R_WRIST, L.L_SHOULDER, L.L_ELBOW, L.L_WRIST],
     requireEitherSide: false,
@@ -208,7 +200,6 @@ export default function AIFormCoach() {
   const [positioningFeedback, setPositioningFeedback] = useState({
     ready: false,
     recommendedView: "Side-On (Profile View)",
-    icon: "📐",
     cue: "Step into camera frame",
     missing: null,
   });
@@ -235,8 +226,9 @@ export default function AIFormCoach() {
   const [reportData, setReportData] = useState(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
-  // Fullscreen State
+  // Fullscreen & Demo Mode State
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // HTML Element Refs
   const viewportRef = useRef(null);
@@ -244,6 +236,7 @@ export default function AIFormCoach() {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const animationFrameIdRef = useRef(null);
+  const demoAnimRef = useRef(null);
   const isProcessingFrameRef = useRef(false);
   const cameraInstanceRef = useRef(null);
   const poseInstanceRef = useRef(null);
@@ -1162,13 +1155,212 @@ export default function AIFormCoach() {
     const nextMode = facingMode === "user" ? "environment" : "user";
     setFacingMode(nextMode);
     runtimeRef.current.facingMode = nextMode;
-    if (isCameraRunning) {
+    if (isCameraRunning && !isDemoMode) {
       await startCameraAndPose(nextMode);
     }
   };
 
+  // Interactive Product Demo Mode (Real-time Biomechanical Pose Simulation)
+  const handleStartDemoMode = () => {
+    handleStopCamera();
+
+    setIsDemoMode(true);
+    setIsCameraRunning(true);
+    setIsWorkoutActive(true);
+    setIsPositionLocked(true);
+    setPositioningLockPercent(100);
+
+    const activeEx = exerciseInput || "Squat";
+    runtimeRef.current.isWorkoutActive = true;
+    runtimeRef.current.reps = 0;
+    runtimeRef.current.goodReps = 0;
+    runtimeRef.current.badReps = 0;
+    runtimeRef.current.exerciseName = activeEx;
+
+    setReps(0);
+    setGoodReps(0);
+    setBadReps(0);
+    setFormScore(100);
+    setSetDuration(0);
+    setLiveIssues([]);
+    setMovementPhase("DEMO SIMULATION ACTIVE");
+
+    if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+    timerIntervalRef.current = setInterval(() => {
+      setSetDuration((d) => d + 1);
+    }, 1000);
+
+    speakCue(`Demo Mode active. Simulating 33-point biomechanics for ${activeEx}.`);
+
+    let t = 0;
+    let repCount = 0;
+    let reachedBottom = false;
+
+    const animateDemo = () => {
+      t += 0.035;
+      const cycle = (Math.sin(t) + 1) / 2;
+      const depth = cycle;
+      const angle = Math.round(172 - depth * 88);
+
+      setCurrentRawAngle(angle);
+
+      if (depth > 0.82) {
+        if (!reachedBottom) {
+          reachedBottom = true;
+          setMovementPhase("PARALLEL DEPTH (84°)");
+          setLiveFormStatus({ text: "✓ Optimal Depth Reached", isGood: true });
+        }
+      } else if (depth < 0.18) {
+        if (reachedBottom) {
+          reachedBottom = false;
+          repCount += 1;
+          runtimeRef.current.reps = repCount;
+          runtimeRef.current.goodReps = repCount;
+          setReps(repCount);
+          setGoodReps(repCount);
+          setFormScore(98);
+          setMovementPhase("REP COMPLETED (LOCKOUT)");
+          setRepPop({ count: repCount, isGood: true, active: true });
+          setTimeout(() => setRepPop((p) => ({ ...p, active: false })), 900);
+          speakCue(`Rep ${repCount}, excellent!`);
+        } else {
+          setMovementPhase("ECCENTRIC PREPARATION");
+        }
+      } else {
+        setMovementPhase(depth > 0.5 ? "ECCENTRIC DESCENT" : "CONCENTRIC DRIVE");
+      }
+
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          canvas.width = 640;
+          canvas.height = 480;
+          const w = canvas.width;
+          const h = canvas.height;
+
+          ctx.fillStyle = "#090d16";
+          ctx.fillRect(0, 0, w, h);
+
+          // Floor grid perspective
+          ctx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+          ctx.lineWidth = 1;
+          for (let y = 300; y < h; y += 35) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            ctx.stroke();
+          }
+
+          // Generate 33 synthetic landmarks
+          const shoulderY = 0.28 + depth * 0.14;
+          const hipY = 0.48 + depth * 0.16;
+          const kneeY = 0.68 + depth * 0.08;
+          const kneeX = 0.44 - depth * 0.03;
+          const ankleY = 0.88;
+          const ankleX = 0.48;
+
+          const lm = Array(33).fill(null).map(() => ({ x: 0.5, y: 0.5, z: 0, visibility: 0.95 }));
+          
+          lm[L.NOSE] = { x: 0.50, y: shoulderY - 0.12, visibility: 0.95 };
+          lm[L.L_EYE] = { x: 0.52, y: shoulderY - 0.13, visibility: 0.95 };
+          lm[L.R_EYE] = { x: 0.48, y: shoulderY - 0.13, visibility: 0.95 };
+
+          lm[L.L_SHOULDER] = { x: 0.54, y: shoulderY, visibility: 0.95 };
+          lm[L.R_SHOULDER] = { x: 0.46, y: shoulderY, visibility: 0.95 };
+          lm[L.L_ELBOW] = { x: 0.58, y: shoulderY + 0.12, visibility: 0.95 };
+          lm[L.R_ELBOW] = { x: 0.42, y: shoulderY + 0.12, visibility: 0.95 };
+          lm[L.L_WRIST] = { x: 0.56, y: shoulderY + 0.05, visibility: 0.95 };
+          lm[L.R_WRIST] = { x: 0.44, y: shoulderY + 0.05, visibility: 0.95 };
+
+          lm[L.L_HIP] = { x: 0.53, y: hipY, visibility: 0.95 };
+          lm[L.R_HIP] = { x: 0.47, y: hipY, visibility: 0.95 };
+
+          lm[L.L_KNEE] = { x: 0.55 + depth * 0.03, y: kneeY, visibility: 0.95 };
+          lm[L.R_KNEE] = { x: kneeX, y: kneeY, visibility: 0.95 };
+          lm[L.L_ANKLE] = { x: 0.52, y: ankleY, visibility: 0.95 };
+          lm[L.R_ANKLE] = { x: ankleX, y: ankleY, visibility: 0.95 };
+          lm[L.L_FOOT] = { x: 0.55, y: 0.92, visibility: 0.95 };
+          lm[L.R_FOOT] = { x: 0.45, y: 0.92, visibility: 0.95 };
+
+          const connections = [
+            [L.L_SHOULDER, L.R_SHOULDER],
+            [L.L_SHOULDER, L.L_ELBOW],
+            [L.L_ELBOW, L.L_WRIST],
+            [L.R_SHOULDER, L.R_ELBOW],
+            [L.R_ELBOW, L.R_WRIST],
+            [L.L_SHOULDER, L.L_HIP],
+            [L.R_SHOULDER, L.R_HIP],
+            [L.L_HIP, L.R_HIP],
+            [L.L_HIP, L.L_KNEE],
+            [L.R_HIP, L.R_KNEE],
+            [L.L_KNEE, L.L_ANKLE],
+            [L.R_KNEE, L.R_ANKLE],
+            [L.L_ANKLE, L.L_FOOT],
+            [L.R_ANKLE, L.R_FOOT],
+          ];
+
+          ctx.strokeStyle = "#38bdf8";
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = "round";
+          connections.forEach(([p1, p2]) => {
+            const pt1 = lm[p1];
+            const pt2 = lm[p2];
+            if (pt1 && pt2) {
+              ctx.beginPath();
+              ctx.moveTo(pt1.x * w, pt1.y * h);
+              ctx.lineTo(pt2.x * w, pt2.y * h);
+              ctx.stroke();
+            }
+          });
+
+          lm.forEach((pt, idx) => {
+            if ([L.NOSE, L.L_SHOULDER, L.R_SHOULDER, L.L_ELBOW, L.R_ELBOW, L.L_WRIST, L.R_WRIST, L.L_HIP, L.R_HIP, L.L_KNEE, L.R_KNEE, L.L_ANKLE, L.R_ANKLE].includes(idx)) {
+              ctx.fillStyle = idx === L.R_KNEE || idx === L.L_KNEE ? "#22c55e" : "#38bdf8";
+              ctx.beginPath();
+              ctx.arc(pt.x * w, pt.y * h, idx === L.R_KNEE ? 7 : 5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+
+          // Knee angle indicator callout
+          const kPt = lm[L.R_KNEE];
+          ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
+          ctx.strokeStyle = "#22c55e";
+          ctx.lineWidth = 1.5;
+          const badgeX = kPt.x * w + 16;
+          const badgeY = kPt.y * h - 14;
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY, 78, 26, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 12px monospace";
+          ctx.fillText(`${angle}° KNEE`, badgeX + 8, badgeY + 17);
+
+          // Top Demo Banner
+          ctx.fillStyle = "rgba(56, 189, 248, 0.12)";
+          ctx.fillRect(0, 0, w, 28);
+          ctx.fillStyle = "#38bdf8";
+          ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif";
+          ctx.fillText("● INTERACTIVE DEMO MODE • 33-POINT SKELETAL TELEMETRY", 14, 18);
+        }
+      }
+
+      demoAnimRef.current = requestAnimationFrame(animateDemo);
+    };
+
+    demoAnimRef.current = requestAnimationFrame(animateDemo);
+  };
+
   // Start Workout Set
   const handleStartWorkout = async () => {
+    if (isDemoMode) {
+      if (demoAnimRef.current) cancelAnimationFrame(demoAnimRef.current);
+      demoAnimRef.current = null;
+      setIsDemoMode(false);
+    }
     await startCameraAndPose();
 
     // Reset Runtime Tracker
@@ -1201,6 +1393,12 @@ export default function AIFormCoach() {
 
   // Stop Workout Set & Request LangChain Summary
   const handleStopWorkout = async () => {
+    if (demoAnimRef.current) {
+      cancelAnimationFrame(demoAnimRef.current);
+      demoAnimRef.current = null;
+    }
+    setIsDemoMode(false);
+
     runtimeRef.current.isWorkoutActive = false;
     setIsWorkoutActive(false);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
@@ -1271,6 +1469,12 @@ export default function AIFormCoach() {
     runtimeRef.current.smoothAngle = null;
     runtimeRef.current.currentRepFlaws = [];
 
+    if (demoAnimRef.current) {
+      cancelAnimationFrame(demoAnimRef.current);
+      demoAnimRef.current = null;
+    }
+    setIsDemoMode(false);
+
     setIsWorkoutActive(false);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
 
@@ -1285,6 +1489,13 @@ export default function AIFormCoach() {
 
   // Stop Camera & Release Webcam Hardware
   const handleStopCamera = useCallback(() => {
+    // Cancel demo animation if active
+    if (demoAnimRef.current) {
+      cancelAnimationFrame(demoAnimRef.current);
+      demoAnimRef.current = null;
+    }
+    setIsDemoMode(false);
+
     // 1. Cancel requestAnimationFrame loop
     if (animationFrameIdRef.current) {
       cancelAnimationFrame(animationFrameIdRef.current);
@@ -1501,10 +1712,17 @@ export default function AIFormCoach() {
               {voiceEnabled ? <Volume2 size={16} className="text-green" /> : <VolumeX size={16} />}
             </button>
 
-            <div className="aifc-engine-badge">
-              <Smartphone size={13} className="text-green" />
-              <span>Mobile / WebRTC Active</span>
-            </div>
+            {isDemoMode ? (
+              <div className="aifc-engine-badge text-cyan border border-cyan/40 bg-cyan/10">
+                <Activity size={13} className="text-cyan animate-pulse" />
+                <span>Interactive Pose Demo</span>
+              </div>
+            ) : (
+              <div className="aifc-engine-badge">
+                <Smartphone size={13} className="text-green" />
+                <span>Mobile / WebRTC Active</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1570,11 +1788,20 @@ export default function AIFormCoach() {
                   <div className="flex items-center gap-2.5 mt-2 flex-wrap justify-center">
                     <button
                       type="button"
-                      className="aifc-btn aifc-btn-primary py-2 px-5 text-xs"
+                      className="aifc-btn aifc-btn-primary py-2 px-5 text-xs font-bold"
                       onClick={handleStartWorkout}
                     >
                       <Play size={14} />
                       <span>Start Camera & Calibration</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="aifc-btn aifc-btn-secondary py-2 px-4 text-xs font-semibold"
+                      onClick={handleStartDemoMode}
+                      title="Experience AI Form Coach with real-time simulated 33-point biomechanics"
+                    >
+                      <Activity size={14} className="text-cyan" />
+                      <span>Try Interactive Demo Mode</span>
                     </button>
                     <button
                       type="button"
@@ -1603,7 +1830,7 @@ export default function AIFormCoach() {
                   <div className="aifc-positioning-card">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
-                        <span className="text-xl">{positioningFeedback.icon}</span>
+                        <Camera size={18} className="text-cyan" />
                         <div>
                           <div className="text-xs font-bold text-white uppercase tracking-wider">
                             Camera Positioning Setup
@@ -1888,7 +2115,7 @@ export default function AIFormCoach() {
                   })
                 }
               >
-                <Sparkles size={16} />
+                <Activity size={16} />
                 <span>AI Coach Report</span>
               </button>
             </div>
@@ -2116,7 +2343,7 @@ export default function AIFormCoach() {
                   {reportData?.cuesForNextSet && reportData.cuesForNextSet.length > 0 && (
                     <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.05] text-xs leading-relaxed text-secondary space-y-2">
                       <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <Sparkles size={14} className="text-yellow" />
+                        <ShieldCheck size={14} className="text-cyan" />
                         Target Form Corrections for Set {setsCount + 1}
                       </h4>
                       <ul className="list-disc pl-4 space-y-1 text-muted">

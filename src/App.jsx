@@ -27,6 +27,8 @@ import TrainerChat from "./pages/trainer/TrainerChat";
 import TrainerRequests from "./pages/trainer/TrainerRequests";
 import NutriCoachStudio from "./pages/member/NutriCoachStudio";
 import TurnstileCheckIn from "./pages/TurnstileCheckIn";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -37,6 +39,8 @@ function App() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/check-in" element={<TurnstileCheckIn />} />
       <Route path="/turnstile" element={<TurnstileCheckIn />} />
 

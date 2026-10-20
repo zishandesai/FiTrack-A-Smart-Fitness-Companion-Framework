@@ -7,7 +7,6 @@ import {
   UserRound,
   Activity,
   Check,
-  Sparkles,
   ShieldCheck,
   ChevronDown,
   Zap,
@@ -349,7 +348,7 @@ function DashPreview({ user }) {
         </div>
 
         {/* AI badge */}
-        <div className="dp-ai-chip"><Sparkles size={12} /> AI INSIGHT <strong>+8% form improvement</strong></div>
+        <div className="dp-ai-chip"><Activity size={12} /> AI INSIGHT <strong>+8% form improvement</strong></div>
       </div>
 
       {/* Floating pills */}
@@ -379,7 +378,7 @@ export default function Home() {
         <div className="container hero-grid">
           <div className="hero-text" data-reveal>
             <div className="hero-chip">
-              <Sparkles size={13} />
+              <Activity size={13} />
               <span>AI-POWERED FITNESS PLATFORM</span>
             </div>
 
@@ -607,6 +606,11 @@ export default function Home() {
               <span>ACCOUNT</span>
               <Link to="/login">Login</Link>
               <Link to="/signup">Get Started</Link>
+            </div>
+            <div>
+              <span>LEGAL</span>
+              <Link to="/terms">Terms of Service</Link>
+              <Link to="/privacy">Privacy Policy</Link>
             </div>
           </div>
         </div>

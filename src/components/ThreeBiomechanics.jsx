@@ -6,7 +6,6 @@ import {
   Activity,
   Dumbbell,
   Search,
-  Sparkles,
   RotateCw,
   Maximize2,
   Minimize2,
@@ -236,6 +235,7 @@ export default function ThreeBiomechanics({ targetMuscle = "Chest", onSelectMusc
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.2;
+    renderer.domElement.style.touchAction = "pan-y";
     currentMount.innerHTML = "";
     currentMount.appendChild(renderer.domElement);
 
@@ -245,6 +245,7 @@ export default function ThreeBiomechanics({ targetMuscle = "Chest", onSelectMusc
     controls.dampingFactor = 0.05;
     controls.maxDistance = 6.0;
     controls.minDistance = 0.8;
+    controls.enableZoom = false; // Prevent pinch gestures from hijacking page zoom on mobile
     controls.target.copy(targetLookAtRef.current);
     controlsRef.current = controls;
 

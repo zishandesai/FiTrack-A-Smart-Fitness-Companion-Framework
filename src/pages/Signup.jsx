@@ -13,7 +13,6 @@ import {
   Dumbbell,
   Award,
   Briefcase,
-  Sparkles,
 } from "lucide-react";
 
 import { Link, useNavigate } from "react-router-dom";
@@ -580,6 +579,13 @@ export default function Signup() {
             <Link to="/login">
               Sign in
             </Link>
+          </p>
+
+          <p className="signup-disclaimer text-[11px] text-muted text-center mt-3">
+            By creating an account, you agree to the{" "}
+            <Link to="/terms" className="text-white hover:underline">Terms of Service</Link>
+            {" "}and{" "}
+            <Link to="/privacy" className="text-white hover:underline">Privacy Policy</Link>.
           </p>
 
         </div>
