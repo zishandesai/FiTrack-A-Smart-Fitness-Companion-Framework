@@ -339,6 +339,28 @@ export function AuthProvider({ children }) {
           } catch {
             // ignore
           }
+        } else if (resolvedRole === "trainer") {
+          try {
+            const trainers = getTrainersList();
+            if (!trainers.some((t) => t.email?.toLowerCase() === backendUser.email?.toLowerCase())) {
+              const newTr = {
+                id: backendUser.id || backendUser._id || `tr_${Date.now()}`,
+                _id: backendUser.id || backendUser._id,
+                name: backendUser.name || (backendUser.email ? backendUser.email.split("@")[0] : "Trainer"),
+                email: backendUser.email,
+                phone: backendUser.phone || "—",
+                specialty: backendUser.specialty || "Strength & Hypertrophy",
+                experience: backendUser.experience || "3+ years",
+                rating: 5.0,
+                clients: 0,
+                status: "Active",
+                bio: `Certified fitness coach specializing in ${backendUser.specialty || "progressive overload and strength"}.`,
+              };
+              saveTrainersList([newTr, ...trainers]);
+            }
+          } catch {
+            // ignore
+          }
         }
 
         return backendUser;

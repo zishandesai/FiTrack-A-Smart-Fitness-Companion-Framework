@@ -5008,15 +5008,24 @@ img {
 
   .auth-form-side {
     min-height: 100dvh;
-    padding: 72px 20px 32px;
+    padding: 24px 20px 40px;
     width: 100%;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: center;
+    box-sizing: border-box;
   }
 
   .auth-top-nav {
-    top: 16px;
-    left: 20px;
-    right: 20px;
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    width: 100%;
+    max-width: 420px;
+    margin: 0 auto 20px auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     font-size: 12px;
   }
 
@@ -5032,7 +5041,7 @@ img {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     color: white;
     font-family: "Manrope", sans-serif;
     font-size: 16px;
@@ -5044,9 +5053,9 @@ img {
   }
 
   .auth-heading h2 {
-    font-size: 32px;
-    line-height: 1.05;
-    margin-top: 10px;
+    font-size: 30px;
+    line-height: 1.08;
+    margin-top: 8px;
   }
 
   .auth-heading p {
@@ -5055,37 +5064,35 @@ img {
   }
 
   .auth-form {
-    margin-top: 24px;
-    gap: 16px;
+    margin-top: 20px;
+    gap: 15px;
   }
 }
 
 @media (max-width: 480px) {
   .auth-form-side {
-    padding: 68px 16px 28px;
+    padding: 20px 16px 36px;
   }
 
   .auth-top-nav {
-    top: 14px;
-    left: 16px;
-    right: 16px;
-    font-size: 11.5px;
+    font-size: 11px;
+    margin-bottom: 18px;
   }
 
   .auth-top-nav .back-link {
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .auth-top-nav span {
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .auth-heading h2 {
-    font-size: 28px;
+    font-size: 26px;
   }
 
   .auth-heading p {
-    font-size: 11.5px;
+    font-size: 11px;
   }
 
   .form-input {
@@ -5443,21 +5450,19 @@ img {
 
   .signup-form-side {
     min-height: 100vh;
-
-    padding: 60px 25px 35px;
+    padding: 24px 20px 40px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
   }
 
   .signup-mobile-brand {
     display: flex;
     align-items: center;
     gap: 8px;
-
-    margin-bottom: 35px;
-
+    margin-bottom: 22px;
     color: white;
-
     font-family: "Manrope", sans-serif;
-
     font-size: 15px;
     font-weight: 800;
   }

@@ -1,6 +1,19 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Menu, Brain } from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import {
+  Menu,
+  Brain,
+  LayoutDashboard,
+  Dumbbell,
+  Sparkles,
+  User,
+  Users,
+  ShieldCheck,
+  FileText,
+  CalendarCheck,
+  PlusCircle,
+  MessageSquare,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import Sidebar from "./Sidebar";
 import AIChatModal from "./AIChatModal";
@@ -46,6 +59,30 @@ export default function DashboardLayout({ children, title, subtitle }) {
   };
 
   const currentRole = roleConfigs[role] || roleConfigs.member;
+
+  const mobileNavItems = {
+    member: [
+      { label: "Dashboard", path: "/member", icon: LayoutDashboard },
+      { label: "Workout", path: "/member/workout", icon: Dumbbell },
+      { label: "NutriCoach", path: "/member/nutricoach", icon: Brain },
+      { label: "AI Form", path: "/member/ai-coach", icon: Sparkles },
+      { label: "Profile", path: "/member/profile", icon: User },
+    ],
+    trainer: [
+      { label: "Dashboard", path: "/trainer", icon: LayoutDashboard },
+      { label: "Athletes", path: "/trainer/members", icon: Users },
+      { label: "Assign", path: "/trainer/workout", icon: PlusCircle },
+      { label: "NutriCoach", path: "/trainer/nutricoach", icon: Brain },
+      { label: "Chat", path: "/trainer/chat", icon: MessageSquare },
+    ],
+    admin: [
+      { label: "Dashboard", path: "/admin", icon: LayoutDashboard },
+      { label: "Members", path: "/admin/members", icon: Users },
+      { label: "Trainers", path: "/admin/trainers", icon: ShieldCheck },
+      { label: "Desk", path: "/admin/memberships", icon: FileText },
+      { label: "Attendance", path: "/admin/attendance", icon: CalendarCheck },
+    ],
+  };
 
   const handleLogout = () => {
     logout();
@@ -153,6 +190,28 @@ export default function DashboardLayout({ children, title, subtitle }) {
           }}
           initialPrompt={aiInitialPrompt}
         />
+
+        {/* Mobile Bottom Navigation Bar (Gym-Engineered Mobile Experience) */}
+        <nav className="dash-mobile-bottom-nav" aria-label="Mobile Navigation">
+          {(mobileNavItems[role] || mobileNavItems.member).map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.path === "/member" || item.path === "/trainer" || item.path === "/admin"}
+                className={({ isActive }) =>
+                  `dash-bottom-nav-item ${isActive ? "active" : ""}`
+                }
+              >
+                <div className="bottom-nav-icon-wrap">
+                  <Icon size={19} />
+                </div>
+                <span className="bottom-nav-label">{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
       </main>
     </div>
   );

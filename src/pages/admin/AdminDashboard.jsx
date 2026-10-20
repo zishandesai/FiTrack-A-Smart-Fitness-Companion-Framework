@@ -48,29 +48,38 @@ export default function AdminDashboard() {
             supabaseService.getAllMembershipRequests(),
           ]);
 
-          // Merge members
-          if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
-            const local = getMembersList();
-            const map = new Map();
-            local.forEach((m) => map.set(m.id || m.email, m));
-            cloudMembers.forEach((m) =>
-              map.set(m.id || m.email, { ...(map.get(m.id || m.email) || {}), ...m })
-            );
-            const merged = Array.from(map.values());
-            setMembers(merged);
-            saveMembersList(merged);
+          // Merge members by email or id
+          const localM = getMembersList();
+          const map = new Map();
+          localM.forEach((m) => {
+            const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+            if (key) map.set(key, m);
+          });
+          if (Array.isArray(cloudMembers)) {
+            cloudMembers.forEach((m) => {
+              const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+              if (key) map.set(key, { ...(map.get(key) || {}), ...m });
+            });
           }
+          const merged = Array.from(map.values());
+          setMembers(merged);
+          saveMembersList(merged);
 
           // Merge trainers with default certified coaches
           const trMap = new Map();
-          DEFAULT_CERTIFIED_TRAINERS.forEach((t) => trMap.set(t.id, t));
-          getTrainersList().forEach((t) =>
-            trMap.set(t.id, { ...(trMap.get(t.id) || {}), ...t })
-          );
+          DEFAULT_CERTIFIED_TRAINERS.forEach((t) => {
+            const key = t.email ? t.email.trim().toLowerCase() : t.id;
+            trMap.set(key, t);
+          });
+          getTrainersList().forEach((t) => {
+            const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+            if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...t });
+          });
           if (Array.isArray(cloudTrainers)) {
-            cloudTrainers.forEach((t) =>
-              trMap.set(t.id, { ...(trMap.get(t.id) || {}), ...t })
-            );
+            cloudTrainers.forEach((t) => {
+              const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+              if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...t });
+            });
           }
           const mergedTrainers = Array.from(trMap.values());
           setTrainers(mergedTrainers);
@@ -111,11 +120,43 @@ export default function AdminDashboard() {
         ]);
         if (mRes.status === "fulfilled" && mRes.value?.data?.success) {
           const list = mRes.value?.data?.members || mRes.value?.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) setMembers(list);
+          if (Array.isArray(list) && list.length > 0) {
+            const currentMembers = getMembersList();
+            const map = new Map();
+            currentMembers.forEach((m) => {
+              const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+              if (key) map.set(key, m);
+            });
+            list.forEach((m) => {
+              const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+              if (key) map.set(key, { ...(map.get(key) || {}), ...m });
+            });
+            const merged = Array.from(map.values());
+            setMembers(merged);
+            saveMembersList(merged);
+          }
         }
         if (tRes.status === "fulfilled" && tRes.value?.data?.success) {
           const list = tRes.value?.data?.trainers || tRes.value?.data?.data || [];
-          if (Array.isArray(list) && list.length > 0) setTrainers(list);
+          if (Array.isArray(list) && list.length > 0) {
+            const currentTrainers = getTrainersList();
+            const trMap = new Map();
+            DEFAULT_CERTIFIED_TRAINERS.forEach((t) => {
+              const key = t.email ? t.email.trim().toLowerCase() : t.id;
+              trMap.set(key, t);
+            });
+            currentTrainers.forEach((t) => {
+              const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+              if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...t });
+            });
+            list.forEach((t) => {
+              const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+              if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...t });
+            });
+            const mergedTrainers = Array.from(trMap.values());
+            setTrainers(mergedTrainers);
+            saveTrainersList(mergedTrainers);
+          }
         }
         if (reqRes.status === "fulfilled" && reqRes.value?.data?.success) {
           const list = reqRes.value?.data?.requests || reqRes.value?.data?.data || [];

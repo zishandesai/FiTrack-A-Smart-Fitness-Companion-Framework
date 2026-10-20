@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Sparkles, Eye, EyeOff } from "lucide-react";
 
-export default function ThreeDumbbellBackground({ opacity = 0.42, interactive = true }) {
+export default function ThreeDumbbellBackground({ opacity = 0.42, interactive = true, showControls = false }) {
   const mountRef = useRef(null);
   const [visible, setVisible] = useState(true);
   const [intensity, setIntensity] = useState("normal"); // subtle, normal, cinematic
@@ -371,58 +371,60 @@ export default function ThreeDumbbellBackground({ opacity = 0.42, interactive = 
         }}
       />
 
-      {/* Subtle 3D Ambiance Intensity Control Pill */}
-      <div
-        className="three-bg-control-pill"
-        style={{
-          position: "fixed",
-          bottom: "16px",
-          left: "20px",
-          zIndex: 45,
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          padding: "6px 12px",
-          background: "rgba(14, 20, 36, 0.8)",
-          backdropFilter: "blur(12px)",
-          border: "1px solid rgba(85, 231, 255, 0.2)",
-          borderRadius: "999px",
-          boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
-          fontSize: "11px",
-          color: "rgba(255, 255, 255, 0.75)",
-          userSelect: "none",
-        }}
-      >
-        <button
-          type="button"
-          onClick={() => setVisible(!visible)}
-          className="flex items-center gap-1.5 hover:text-cyan transition-colors cursor-pointer bg-transparent border-none text-inherit p-0"
-          title={visible ? "Hide 3D Dumbbell Background" : "Show 3D Dumbbell Background"}
+      {/* Subtle 3D Ambiance Intensity Control Pill (Shown only when enabled) */}
+      {showControls && (
+        <div
+          className="three-bg-control-pill"
+          style={{
+            position: "fixed",
+            bottom: "16px",
+            left: "20px",
+            zIndex: 45,
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "6px 12px",
+            background: "rgba(14, 20, 36, 0.8)",
+            backdropFilter: "blur(12px)",
+            border: "1px solid rgba(85, 231, 255, 0.2)",
+            borderRadius: "999px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
+            fontSize: "11px",
+            color: "rgba(255, 255, 255, 0.75)",
+            userSelect: "none",
+          }}
         >
-          {visible ? <Eye size={13} className="text-cyan" /> : <EyeOff size={13} />}
-          <span className="font-semibold text-white">3D Dumbbell FX</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => setVisible(!visible)}
+            className="flex items-center gap-1.5 hover:text-cyan transition-colors cursor-pointer bg-transparent border-none text-inherit p-0"
+            title={visible ? "Hide 3D Dumbbell Background" : "Show 3D Dumbbell Background"}
+          >
+            {visible ? <Eye size={13} className="text-cyan" /> : <EyeOff size={13} />}
+            <span className="font-semibold text-white">3D Dumbbell FX</span>
+          </button>
 
-        {visible && (
-          <div className="flex items-center gap-1 ml-1 border-l border-white/10 pl-2">
-            {["subtle", "normal", "cinematic"].map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setIntensity(mode)}
-                className="cursor-pointer border-none px-1.5 py-0.5 rounded text-2xs transition-all uppercase font-bold"
-                style={{
-                  background: intensity === mode ? "rgba(56, 189, 248, 0.25)" : "transparent",
-                  color: intensity === mode ? "#55e7ff" : "rgba(255, 255, 255, 0.45)",
-                  border: intensity === mode ? "1px solid rgba(85, 231, 255, 0.4)" : "1px solid transparent",
-                }}
-              >
-                {mode === "cinematic" ? "Pro" : mode}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+          {visible && (
+            <div className="flex items-center gap-1 ml-1 border-l border-white/10 pl-2">
+              {["subtle", "normal", "cinematic"].map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setIntensity(mode)}
+                  className="cursor-pointer border-none px-1.5 py-0.5 rounded text-2xs transition-all uppercase font-bold"
+                  style={{
+                    background: intensity === mode ? "rgba(56, 189, 248, 0.25)" : "transparent",
+                    color: intensity === mode ? "#55e7ff" : "rgba(255, 255, 255, 0.45)",
+                    border: intensity === mode ? "1px solid rgba(85, 231, 255, 0.4)" : "1px solid transparent",
+                  }}
+                >
+                  {mode === "cinematic" ? "Pro" : mode}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

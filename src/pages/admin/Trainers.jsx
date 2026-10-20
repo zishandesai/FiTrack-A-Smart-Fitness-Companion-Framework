@@ -64,34 +64,36 @@ export default function Trainers() {
           supabaseService.getAllMembers(),
         ]);
 
-        // Merge certified default coaches + any registered cloud coaches
-        const allTrainers = [...cloudTrainers];
-        localTrainers.forEach((lt) => {
-          const alreadyExists = allTrainers.some(
-            (ct) => ct.id === lt.id || (ct.email && ct.email.toLowerCase() === lt.email?.toLowerCase())
-          );
-          if (!alreadyExists) allTrainers.push(lt);
+        const trMap = new Map();
+        DEFAULT_CERTIFIED_TRAINERS.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : t.id;
+          trMap.set(key, t);
         });
-
-        // Ensure default coaches are always included if not present
-        DEFAULT_CERTIFIED_TRAINERS.forEach((dt) => {
-          const exists = allTrainers.some(
-            (t) => t.id === dt.id || t.name?.toLowerCase() === dt.name.toLowerCase()
-          );
-          if (!exists) allTrainers.push(dt);
+        localTrainers.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+          if (key) trMap.set(key, t);
         });
-
+        if (Array.isArray(cloudTrainers)) {
+          cloudTrainers.forEach((t) => {
+            const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+            if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...t });
+          });
+        }
+        const allTrainers = Array.from(trMap.values());
         setTrainers(allTrainers);
         saveTrainersList(allTrainers);
 
-        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
-          const mergedMembers = [...cloudMembers];
+        if (Array.isArray(cloudMembers)) {
+          const map = new Map();
           localMembers.forEach((lm) => {
-            const alreadyExists = mergedMembers.some(
-              (cm) => cm.id === lm.id || (cm.email && cm.email.toLowerCase() === lm.email?.toLowerCase())
-            );
-            if (!alreadyExists) mergedMembers.push(lm);
+            const key = lm.email ? lm.email.trim().toLowerCase() : (lm.id || lm._id);
+            if (key) map.set(key, lm);
           });
+          cloudMembers.forEach((cm) => {
+            const key = cm.email ? cm.email.trim().toLowerCase() : (cm.id || cm._id);
+            if (key) map.set(key, { ...(map.get(key) || {}), ...cm });
+          });
+          const mergedMembers = Array.from(map.values());
           setMembers(mergedMembers);
           saveMembersList(mergedMembers);
         }
@@ -108,22 +110,42 @@ export default function Trainers() {
         api.get("/members"),
       ]);
 
-      if (trRes.status === "fulfilled" && trRes.value.data?.success) {
-        setTrainers(
-          trRes.value.data.trainers.map((t) => ({
-            ...t,
-            id: t._id || t.id,
-          }))
-        );
+      if (trRes.status === "fulfilled" && trRes.value.data?.success && Array.isArray(trRes.value.data.trainers)) {
+        const currentTrainers = getTrainersList();
+        const trMap = new Map();
+        DEFAULT_CERTIFIED_TRAINERS.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : t.id;
+          trMap.set(key, t);
+        });
+        currentTrainers.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+          if (key) trMap.set(key, t);
+        });
+        trRes.value.data.trainers.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+          const mapped = { ...t, id: t._id || t.id };
+          if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...mapped });
+        });
+        const mergedTr = Array.from(trMap.values());
+        setTrainers(mergedTr);
+        saveTrainersList(mergedTr);
       }
 
-      if (memRes.status === "fulfilled" && memRes.value.data?.success) {
-        setMembers(
-          memRes.value.data.members.map((m) => ({
-            ...m,
-            id: m._id || m.id,
-          }))
-        );
+      if (memRes.status === "fulfilled" && memRes.value.data?.success && Array.isArray(memRes.value.data.members)) {
+        const currentList = getMembersList();
+        const map = new Map();
+        currentList.forEach((m) => {
+          const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+          if (key) map.set(key, m);
+        });
+        memRes.value.data.members.forEach((m) => {
+          const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+          const mapped = { ...m, id: m._id || m.id };
+          if (key) map.set(key, { ...(map.get(key) || {}), ...mapped });
+        });
+        const merged = Array.from(map.values());
+        setMembers(merged);
+        saveMembersList(merged);
       }
     } catch {
       // Fallback to local state

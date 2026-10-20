@@ -917,13 +917,23 @@ export default function AIFormCoach() {
       // 2. Initialize MediaPipe Pose instance if not already ready
       if (!poseInstanceRef.current) {
         if (typeof window === "undefined" || !window.Pose) {
-          alert("MediaPipe Pose engine is loading. Please wait 2 seconds and tap Start again.");
-          return;
+          await new Promise((resolve) => {
+            const script = document.createElement("script");
+            script.src = "https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js";
+            script.crossOrigin = "anonymous";
+            script.onload = () => resolve(true);
+            script.onerror = () => resolve(false);
+            document.head.appendChild(script);
+            setTimeout(resolve, 3000);
+          });
         }
 
-        const pose = new window.Pose({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
-        });
+        if (typeof window === "undefined" || !window.Pose) {
+          console.warn("MediaPipe Pose engine still loading in background. Camera will start in live preview mode.");
+        } else {
+          const pose = new window.Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`,
+          });
         pose.setOptions({
           modelComplexity: 1,
           smoothLandmarks: true,
@@ -1056,6 +1066,7 @@ export default function AIFormCoach() {
         });
 
         poseInstanceRef.current = pose;
+        }
       }
 
       // 3. Acquire Media Stream directly via WebRTC getUserMedia (Mobile & Desktop Single-Device Optimized)
@@ -1097,7 +1108,17 @@ export default function AIFormCoach() {
         videoRef.current.setAttribute("playsinline", "true");
         videoRef.current.setAttribute("webkit-playsinline", "true");
         videoRef.current.muted = true;
-        
+        videoRef.current.autoplay = true;
+
+        await new Promise((resolve) => {
+          if (videoRef.current.readyState >= 1) {
+            resolve();
+          } else {
+            videoRef.current.onloadedmetadata = () => resolve();
+            setTimeout(resolve, 800);
+          }
+        });
+
         await videoRef.current.play().catch((e) => {
           console.warn("Video play promise error (handled):", e);
         });
@@ -1497,15 +1518,16 @@ export default function AIFormCoach() {
               ref={viewportRef}
               className={`aifc-viewport-container ${isFullscreen ? "is-fullscreen" : ""}`}
             >
-              {/* Hidden Video (Kept active in DOM with 1px to prevent Chromium from suspending stream) */}
+              {/* Hardware Video Stream with WebRTC Single-Device Mobile & Desktop Support */}
               <video
                 ref={videoRef}
                 playsInline
                 webkit-playsinline="true"
                 muted
-                style={{ position: "absolute", top: 0, left: 0, width: "1px", height: "1px", opacity: 0 }}
+                autoPlay
+                className={`aifc-live-video ${facingMode === "user" ? "is-mirrored" : ""}`}
               />
-              <canvas ref={canvasRef} />
+              <canvas ref={canvasRef} className="aifc-hud-canvas" />
 
               {/* Standby Placeholder - Center Aligned */}
               {!isCameraRunning && (

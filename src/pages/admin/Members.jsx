@@ -68,25 +68,33 @@ export default function Members() {
           supabaseService.getAllTrainers(),
         ]);
 
-        if (Array.isArray(cloudMembers) && cloudMembers.length > 0) {
-          const merged = [...cloudMembers];
+        if (Array.isArray(cloudMembers)) {
+          const map = new Map();
           localMembers.forEach((lm) => {
-            const alreadyExists = merged.some(
-              (cm) => cm.id === lm.id || (cm.email && cm.email.toLowerCase() === lm.email?.toLowerCase())
-            );
-            if (!alreadyExists) merged.push(lm);
+            const key = lm.email ? lm.email.trim().toLowerCase() : (lm.id || lm._id);
+            if (key) map.set(key, lm);
           });
+          cloudMembers.forEach((cm) => {
+            const key = cm.email ? cm.email.trim().toLowerCase() : (cm.id || cm._id);
+            if (key) map.set(key, { ...(map.get(key) || {}), ...cm });
+          });
+          const merged = Array.from(map.values());
           setMembers(merged);
           saveMembersList(merged);
         }
 
-        const allTrainers = [...cloudTrainers];
+        const trMap = new Map();
         localTrainers.forEach((lt) => {
-          const alreadyExists = allTrainers.some(
-            (ct) => ct.id === lt.id || (ct.email && ct.email.toLowerCase() === lt.email?.toLowerCase())
-          );
-          if (!alreadyExists) allTrainers.push(lt);
+          const key = lt.email ? lt.email.trim().toLowerCase() : (lt.id || lt._id);
+          if (key) trMap.set(key, lt);
         });
+        if (Array.isArray(cloudTrainers)) {
+          cloudTrainers.forEach((ct) => {
+            const key = ct.email ? ct.email.trim().toLowerCase() : (ct.id || ct._id);
+            if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...ct });
+          });
+        }
+        const allTrainers = Array.from(trMap.values());
         setTrainers(allTrainers);
         saveTrainersList(allTrainers);
       } catch (err) {
@@ -102,22 +110,42 @@ export default function Members() {
         api.get("/trainers"),
       ]);
 
-      if (membersRes.status === "fulfilled" && membersRes.value.data?.success) {
-        const mapped = membersRes.value.data.members.map((m) => ({
-          ...m,
-          id: m._id || m.id,
-          trainer: m.trainerId?.name || m.trainerName || m.trainer || "—",
-        }));
-        setMembers(mapped);
+      if (membersRes.status === "fulfilled" && membersRes.value.data?.success && Array.isArray(membersRes.value.data.members)) {
+        const currentList = getMembersList();
+        const map = new Map();
+        currentList.forEach((m) => {
+          const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+          if (key) map.set(key, m);
+        });
+        membersRes.value.data.members.forEach((m) => {
+          const key = m.email ? m.email.trim().toLowerCase() : (m.id || m._id);
+          const mapped = {
+            ...m,
+            id: m._id || m.id,
+            trainer: m.trainerId?.name || m.trainerName || m.trainer || "—",
+          };
+          if (key) map.set(key, { ...(map.get(key) || {}), ...mapped });
+        });
+        const merged = Array.from(map.values());
+        setMembers(merged);
+        saveMembersList(merged);
       }
 
-      if (trainersRes.status === "fulfilled" && trainersRes.value.data?.success) {
-        setTrainers(
-          trainersRes.value.data.trainers.map((t) => ({
-            ...t,
-            id: t._id || t.id,
-          }))
-        );
+      if (trainersRes.status === "fulfilled" && trainersRes.value.data?.success && Array.isArray(trainersRes.value.data.trainers)) {
+        const currentTrainers = getTrainersList();
+        const trMap = new Map();
+        currentTrainers.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+          if (key) trMap.set(key, t);
+        });
+        trainersRes.value.data.trainers.forEach((t) => {
+          const key = t.email ? t.email.trim().toLowerCase() : (t.id || t._id);
+          const mapped = { ...t, id: t._id || t.id };
+          if (key) trMap.set(key, { ...(trMap.get(key) || {}), ...mapped });
+        });
+        const mergedTr = Array.from(trMap.values());
+        setTrainers(mergedTr);
+        saveTrainersList(mergedTr);
       }
     } catch {
       // Fallback to local state

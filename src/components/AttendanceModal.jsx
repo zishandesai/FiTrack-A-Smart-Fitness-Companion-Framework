@@ -32,8 +32,6 @@ export default function AttendanceModal({
   onClose,
   onSaved,
 }) {
-  if (!athlete) return null;
-
   // Dynamic Date and Time Information
   const now = new Date();
   const todayDay = now.getDate();
@@ -53,7 +51,7 @@ export default function AttendanceModal({
   });
 
   // Resolve athlete's comprehensive profile data
-  const athleteKey = (athlete.email || athlete.name || athlete.id || "")
+  const athleteKey = (athlete?.email || athlete?.name || athlete?.id || "")
     .toLowerCase()
     .trim();
   const members = getMembersList();
@@ -271,6 +269,8 @@ export default function AttendanceModal({
       setSaving(false);
     }
   };
+
+  if (!athlete) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

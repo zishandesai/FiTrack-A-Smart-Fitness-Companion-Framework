@@ -153,13 +153,6 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
     scrollToBottom();
   }, [messages, loading]);
 
-  useEffect(() => {
-    if (isOpen && initialPrompt && initialPrompt !== lastInitialPromptRef.current) {
-      lastInitialPromptRef.current = initialPrompt;
-      handleSend(initialPrompt);
-    }
-  }, [isOpen, initialPrompt]);
-
   const handleCopy = (id, text) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -269,6 +262,13 @@ export default function AIChatModal({ isOpen, onClose, initialPrompt = "" }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && initialPrompt && initialPrompt !== lastInitialPromptRef.current) {
+      lastInitialPromptRef.current = initialPrompt;
+      handleSend(initialPrompt);
+    }
+  }, [isOpen, initialPrompt]);
 
   if (!isOpen) return null;
 

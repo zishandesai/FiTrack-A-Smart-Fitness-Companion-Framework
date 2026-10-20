@@ -54,6 +54,28 @@ export default async function handler(req, res) {
     }
   }
 
+  if (req.method === "PUT") {
+    const { memberId, email, trainerId, trainerName, trainerSpecialty, membershipStatus, plan } = req.body || {};
+    try {
+      const updates = {};
+      if (trainerId !== undefined) updates.trainer_id = trainerId;
+      if (trainerName !== undefined) updates.trainer_name = trainerName;
+      if (trainerSpecialty !== undefined) updates.trainer_specialty = trainerSpecialty;
+      if (plan !== undefined) updates.plan = plan;
+      if (membershipStatus !== undefined) updates.membership_status = membershipStatus;
+      updates.updated_at = new Date().toISOString();
+
+      let query = supabase.from("profiles").update(updates);
+      if (memberId) query = query.eq("id", memberId);
+      else if (email) query = query.eq("email", email.trim().toLowerCase());
+      const { data: updated, error: updateErr } = await query.select();
+
+      return res.status(200).json({ success: true, updated, error: updateErr?.message });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message });
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from("profiles")
