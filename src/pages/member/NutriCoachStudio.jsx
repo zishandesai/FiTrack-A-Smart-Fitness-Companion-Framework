@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import DashboardLayout from "../../components/DashboardLayout";
 import { useAuth } from "../../context/AuthContext";
-import { chatNutriCoach } from "../../services/aiService";
+import { chatNutriCoach, synthesizeComprehensiveOfflineReply } from "../../services/aiService";
 
 export default function NutriCoachStudio() {
   const { user } = useAuth();
@@ -167,9 +167,7 @@ export default function NutriCoachStudio() {
     const cleanText = textToSend.trim();
     const isPureGreeting =
       !imageToSend &&
-      /^(hi|hello|hey|yo|greetings|good\s*(morning|afternoon|evening)|sup)\b/i.test(cleanText) &&
-      cleanText.length < 40 &&
-      !/(macro|tdee|calorie|workout|exercise|diet|food|meal|protein|form|split|plan|squat|bench|pushup|curl)/i.test(cleanText);
+      /^(hi|hello|hey|yo|greetings|good\s*(morning|afternoon|evening)|sup)[!.]*$/i.test(cleanText);
 
     if (isPureGreeting) {
       setTimeout(() => {
@@ -181,7 +179,7 @@ export default function NutriCoachStudio() {
         const aiMsg = {
           id: `ai_${Date.now()}`,
           role: "assistant",
-          text: `Hello **${memberName}**! I am your FIT-TRACK NutriCoach AI.\n\nYour biometric profile is active: **${weight}kg** bodyweight, targeted for **${goal}**, with **${coach}** on your protocol.\n\nHere is what I can compute for you:\n[1] Calculate exact TDEE and macro breakdown for your ${goal} target\n[2] Generate tailored daily meal plan (High-Protein, Vegetarian, or Balanced)\n[3] Review workout split and exercise form biomechanics\n[4] Upload a meal photo to inspect calories and macros\n\nWhat would you like to optimize today?`,
+          text: `Hello **${memberName}**! I am your FIT-TRACK NutriCoach AI.\n\nYour sports science vitals are calibrated: **${weight}kg** bodyweight, targeted for **${goal}**, under protocol with **${coach}**.\n\nHow is your body and mind feeling today? Tell me about your training, physical sensations, nutrition, or how you are feeling mentally.`,
           toolUsed: null,
           toolData: null,
           source: "fast-path-instant",
@@ -219,109 +217,17 @@ export default function NutriCoachStudio() {
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
       console.warn("NutriCoach Studio fallback triggered:", err.message);
-      const text = textToSend.toLowerCase();
-      let fallbackReply = `I am FIT-TRACK NutriCoach. I have your biometrics (${user?.weight || 70}kg, ${user?.goal || "General Fitness"}, Coach: ${user?.trainerName || "Coach Alex"}) loaded.`;
-      let toolUsed = null;
-      let toolData = null;
-
-      if (imageToSend) {
-        toolUsed = "analyzeFoodNutritionVision";
-        toolData = {
-          dishName: "High-Protein Athlete Plate",
-          calories: 520,
-          protein: 42,
-          carbs: 54,
-          fats: 12,
-          fiber: 6,
-          goalAlignment: "Optimal",
-        };
-        fallbackReply = `### Visual Food Nutrition Breakdown\nI evaluated your uploaded meal against your **${user?.goal || "Muscle Gain"}** target.\n\n**Detected Components:**\n• Grilled Chicken / Lean Protein (~160g)\n• Steamed Jasmine Rice / Quinoa (~1 cup)\n• Steamed Vegetables with Olive Oil (~100g)\n\n**Nutritional Assessment:**\nHigh biological value protein with moderate low-glycemic carbs for sustained glycogen replenishment.\n\n### Estimated Nutrition Breakdown\n• **Identified Dish:** High-Protein Athlete Plate\n• **Total Calories:** ~520 kcal\n• **Protein:** ~42g\n• **Carbohydrates:** ~54g\n• **Fats:** ~12g\n• **Dietary Fiber:** ~6g\n• **Goal Alignment:** Optimal for ${user?.goal || "Muscle Gain"}`;
-      } else if (text.includes("macro") || text.includes("tdee") || text.includes("calorie") || text.includes("protein")) {
-        toolUsed = "calculateBiometricsAndMacros";
-        toolData = {
-          bmr: 1733,
-          maintenanceTDEE: 2685,
-          targetCalories: 3035,
-          surplusOrDeficit: "+350 kcal lean surplus (optimal hypertrophy)",
-          macros: { proteinG: 144, carbsG: 426, fatsG: 84 },
-          hydrationLiters: "2.5",
-        };
-        fallbackReply = `Here is your biometric nutrition profile calculated for **${user?.goal || "Muscle Gain"}**:\n\n• **Target Calories:** 3,035 kcal/day (+350 lean surplus)\n• **Protein:** 144g (2.0g/kg bodyweight)\n• **Carbohydrates:** 426g (Energy for heavy training)\n• **Healthy Fats:** 84g (Hormone & joint support)\n• **Hydration:** 2.5L minimum/day`;
-      } else if (text.includes("meal") || text.includes("eat") || text.includes("food") || text.includes("diet") || text.includes("plan") || text.includes("nutrition") || text.includes("breakfast") || text.includes("lunch") || text.includes("dinner") || text.includes("snack")) {
-        toolUsed = "generateMealPlan";
-        const isVeg = text.includes("veg");
-        const goal = user?.goal || "General Fitness";
-        toolData = {
-          calories: 2250,
-          proteinG: 155,
-          dietType: isVeg ? "Vegetarian" : "High-Protein Athlete",
-          meals: [
-            {
-              meal: "Breakfast (Power Start)",
-              items: isVeg
-                ? ["3 Scrambled Eggs or Tofu Scramble (200g) with baby spinach", "1.5 cups Rolled Oats with Chia Seeds and 1 sliced banana", "Black coffee or Green tea"]
-                : ["4 Egg Whites + 2 Whole Eggs with spinach", "1.5 cups Rolled Oats with Chia Seeds & sliced banana", "1 scoop Whey Protein Isolate"],
-              macros: { protein: "38g", carbs: "55g", fats: "14g" },
-            },
-            {
-              meal: "Lunch (Sustained Anabolic Drive)",
-              items: isVeg
-                ? ["Grilled Paneer / Tempeh Bowl (180g) with olive oil", "1.5 cups Steamed Jasmine Rice or Quinoa", "Steamed Broccoli, Zucchini & Bell Peppers with 1 tbsp Olive Oil"]
-                : ["Grilled Chicken Breast or Wild Salmon (180g)", "1.5 cups Steamed Jasmine Rice or Quinoa", "Steamed Broccoli, Zucchini & Bell Peppers with 1 tbsp Olive Oil"],
-              macros: { protein: "48g", carbs: "60g", fats: "16g" },
-            },
-            {
-              meal: "Training Fuel (Pre/Post Workout)",
-              items: ["1 cup Greek Yogurt or 1 scoop Whey/Plant Protein Shake", "2 Rice Cakes with 1 tbsp Peanut Butter or 1 Crisp Apple"],
-              macros: { protein: "28g", carbs: "32g", fats: "8g" },
-            },
-            {
-              meal: "Dinner (Overnight Muscle Recovery)",
-              items: isVeg
-                ? ["Lentil Dal / Chickpea Curry (1.5 cups) with sautéed vegetables", "Roasted Sweet Potatoes and Asparagus", "Fresh garden salad with lemon olive oil dressing"]
-                : ["Lean Ground Turkey, Salmon fillet, or Sirloin (180g)", "Roasted Sweet Potatoes and Asparagus", "Fresh garden salad with lemon olive oil dressing"],
-              macros: { protein: "42g", carbs: "40g", fats: "15g" },
-            },
-          ],
-        };
-
-        fallbackReply = `### Tailored Daily Nutrition Plan for **${goal}** (~2,250 kcal | 155g Protein)
-
-**1. Breakfast (Power Start - 38g Protein, 55g Carbs):**
-• ${toolData.meals[0].items.join("\n• ")}
-
-**2. Lunch (Sustained Energy - 48g Protein, 60g Carbs):**
-• ${toolData.meals[1].items.join("\n• ")}
-
-**3. Training Fuel (Pre/Post Workout - 28g Protein, 32g Carbs):**
-• ${toolData.meals[2].items.join("\n• ")}
-
-**4. Dinner (Overnight Recovery - 42g Protein, 40g Carbs):**
-• ${toolData.meals[3].items.join("\n• ")}
-
-**Coaching Guidelines:**
-• **Hydration Target:** Minimum 3.0 Liters water daily.
-• **Protein Spacing:** Distribute 30–45g of protein every 3 to 4 hours for sustained muscle protein synthesis.
-• **Carb Timing:** Place your highest carbohydrate meal 1.5–2 hours before training for peak glycogen availability.`;
-      } else if (text.includes("who am i") || text.includes("profile") || text.includes("trainer") || text.includes("coach")) {
-        toolUsed = "getMemberProfile";
-        fallbackReply = `Hello **${user?.name || "Athlete"}**! I have your complete profile synchronized:\n\n• **Weight:** ${user?.weight || 70} kg | **Height:** ${user?.height || 175} cm\n• **Primary Objective:** ${user?.goal || "Muscle Gain"}\n• **Assigned Coach:** ${user?.trainerName || user?.trainer || "Coach Alex"} (Strength & Hypertrophy)\n• **Membership:** ${user?.membership || "PRO Tier"}\n• **Attendance:** ${user?.attendance ?? 75}% with ${user?.workoutsCount ?? 12} workouts logged.`;
-      } else if (text.includes("workout") || text.includes("exercise") || text.includes("routine") || text.includes("split")) {
-        toolUsed = "getWorkoutSchedule";
-        fallbackReply = `Here is your assigned split for today (**Chest + Triceps Hypertrophy**):\n\n• **Barbell Bench Press**: 4 sets × 8 reps (Focus on controlled eccentric)\n• **Incline Dumbbell Press**: 3 sets × 10 reps (Upper chest activation)\n• **Cable Tricep Pushdown**: 3 sets × 12 reps\n• **Dips**: 3 sets × 12 reps (Full elbow extension)`;
-      } else {
-        fallbackReply = `Hello **${user?.name || "Athlete"}**! I have your sports science vitals active (**${user?.weight || 70}kg**, **${user?.goal || "General Fitness"}**).\n\nHere are prompt queries you can ask me right now:\n[1] **Daily Meal Plan**: *"What should I eat today?"*\n[2] **Exact Macros**: *"Calculate my macros for ${user?.goal || "General Fitness"}"*\n[3] **Workout Split**: *"Review my workout routine"*\n[4] **Food Photo**: Upload any meal photo for visual macro breakdown!`;
-      }
+      const fallbackResult = synthesizeComprehensiveOfflineReply(textToSend, user, imageToSend);
 
       setMessages((prev) => [
         ...prev,
         {
           id: `ai_${Date.now()}`,
           role: "assistant",
-          text: fallbackReply,
-          toolUsed,
-          toolData,
-          source: "offline-fallback",
+          text: fallbackResult.reply,
+          toolUsed: fallbackResult.toolUsed,
+          toolData: fallbackResult.toolData,
+          source: fallbackResult.source || "offline-fallback",
           time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);

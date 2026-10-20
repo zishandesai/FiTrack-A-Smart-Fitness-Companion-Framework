@@ -331,7 +331,7 @@ export const buildSystemPrompt = (userContext = {}) => {
   const planTier = membership?.plan || "PRO";
   const currentWorkout = workout?.name || "Chest + Triceps";
 
-  return `You are "FIT-TRACK NutriCoach", an elite AI Sports Scientist, Exercise Biomechanist, and Clinical Sports Nutritionist powered by LangChain tools on the FIT-TRACK Smart Fitness Companion platform.
+  return `You are "FIT-TRACK NutriCoach", an elite AI Sports Scientist, Exercise Biomechanist, Physical Rehabilitation Coach, and empathetic Athlete Wellness Mentor powered by LangChain tools on the FIT-TRACK Smart Fitness Companion platform.
 
 CURRENT USER & CONTEXT:
 - Active User: ${memberName} (${memberRole.toUpperCase()})
@@ -341,16 +341,21 @@ CURRENT USER & CONTEXT:
 - Membership Status: ${planTier} Membership (Active)
 - Current Assigned Workout: "${currentWorkout}"
 
-STRICT DOMAIN GUARDRAILS:
-1. You ONLY answer questions directly related to:
-   - Human physical fitness, strength training, hypertrophy, cardio, and mobility
-   - Exercise form, joint safety, and biomechanical angles
-   - Sports nutrition, macros (Protein, Carbs, Fats), micronutrients, hydration, and evidence-based supplements (creatine, whey, caffeine)
-   - Recovery, sleep, workout splits, and gym programming
-2. If the user asks about ANY unrelated topic (e.g., coding, politics, philosophy, movies, math, trivia, general world news, software development, gossip), you MUST politely decline and firmly redirect them:
-   "I am FIT-TRACK NutriCoach. I am exclusively specialized in sports nutrition, workouts, and fitness science. How can I help you optimize your training, meals, or physique today?"
-3. Tone: Highly encouraging, scientific, structured, concise, and motivational.
-4. You have full LangChain tool access to inspect member vitals, trainer notes, workouts, compute exact macros, generate tailored meal plans, and review exercise biomechanics. Invoke your tools whenever relevant!`;
+CORE DOMAIN SCOPE:
+1. Athlete Mental & Emotional Well-Being:
+   - Provide compassionate, evidence-based guidance when athletes experience low mood, discouragement, gym anxiety, exhaustion, stress, or burnout.
+   - Explain the neurological connection between central nervous system fatigue, cortisol, and muscle recovery.
+   - Prescribe actionable, calming nervous system downregulation (parasympathetic breathing, 90/90 decompression, sleep hygiene, gentle movement).
+2. Musculoskeletal Health, Spine Care & Injury Recovery:
+   - Provide sports science protocols for lower back pain, disc decompression, knee discomfort, shoulder impingement, joint stiffness, and muscle soreness.
+   - Advise immediate medical attention if red flag symptoms are present (radiating pain down limbs, numbness, weakness, loss of bowel/bladder control).
+3. Sports Nutrition & Body Composition:
+   - Calculate exact TDEE, macronutrients (Protein, Carbs, Fats), and hydration tailored to athlete biometrics.
+   - Generate structured, practical meal plans.
+4. Biomechanics & Exercise Programming:
+   - Form cues, motor unit recruitment, controlled eccentric tempo, and intra-abdominal bracing.
+5. If the user asks about completely unrelated non-health topics (e.g., coding, politics, philosophy, movies, math, trivia, general world news, software development, gossip), politely redirect them to fitness and health.
+6. Tone: Highly encouraging, scientific, empathetic, concise, and motivational. Do not use decorative emoji spam.`;
 };
 
 /**
@@ -532,6 +537,69 @@ function fallbackLangChainExecution(message, userContext = {}) {
       toolData: null,
       telemetry,
       source: "langchain-guardrail-filter",
+    };
+  }
+  // 3. Emotional Low + Back Pain (Combined Intent)
+  const mentionsLowMood = /(feel.*low|feeling.*down|sad|depress|burnout|exhaust|demotivat|no energy|stressed|anxious|overwhelm|tired|drained)/i.test(text);
+  const mentionsBackPain = /(back.*hurt|back.*pain|lower back|spine|lumbar|backache|sciatica|pinched nerve)/i.test(text);
+
+  if (mentionsLowMood && mentionsBackPain) {
+    return {
+      reply: `I hear you, **${telemetry.memberName}**, and I am sorry you are dealing with this today. Experiencing an emotional low at the exact time your back hurts is deeply frustrating, but physiologically, it makes complete sense.\n\n` +
+        `The central nervous system processes physical pain and emotional distress through overlapping neural pathways. When you feel depleted or stressed, your sympathetic nervous system stays elevated, which increases cortisol and causes your spinal erectors and psoas muscles to brace defensively into spasm. In turn, persistent pain exhausts your mental resilience.\n\n` +
+        `Here is our immediate 4-step restorative protocol for today:\n\n` +
+        `**1. Unload Your Lumbar Spine (The 90/90 Rest Pose)**\n` +
+        `Lie flat on your back on a firm floor or rug with your lower legs elevated on a chair, couch, or bench so your hips and knees are bent at 90-degree angles. This neutralizes gravitational shear forces on your lumbar vertebrae, releases tension on the iliopsoas, and lets your spinal discs rehydrate.\n\n` +
+        `**2. Parasympathetic Diaphragmatic Breathing**\n` +
+        `While in the 90/90 pose, place one hand on your belly. Inhale slowly through your nose for 4 seconds, letting your abdomen expand, and exhale smoothly through your mouth for 6 seconds. Perform this for 5 to 8 minutes. This triggers the vagal brake, reducing pain signaling to your brain.\n\n` +
+        `**3. Zero-Guilt Deload Today**\n` +
+        `Do not attempt heavy axial spinal loading (squats, deadlifts, overhead presses) today. Rest is not lost time; it is where biological repair occurs. Coach ${telemetry.trainerName} and I recommend taking today as an active recovery day.\n\n` +
+        `**4. Hydration and Heat**\n` +
+        `Drink 500ml of room-temperature water with a pinch of electrolytes, and apply a warm heating pad to your lower back for 15 minutes to increase localized blood flow.\n\n` +
+        `*Safety Note: If you experience sharp shooting pain down the back of your leg past the knee, numbness in the groin/saddle area, or muscle weakness in your feet, please consult a physician immediately.* How does your back feel when lying flat?`,
+      toolUsed: "sportsRehabProtocol",
+      toolData: { protocol: "Lumbar Decompression & CNS Downregulation", status: "Active Recovery" },
+      telemetry,
+      source: "langchain-sports-rehab",
+    };
+  }
+
+  // 4. Back Pain Focus
+  if (mentionsBackPain) {
+    return {
+      reply: `I understand, **${telemetry.memberName}**. Back pain must be approached with caution and clinical sports science precision to protect your spine.\n\n` +
+        `**Immediate Lumbar Decompression Protocol:**\n\n` +
+        `**1. The 90/90 Resting Position:**\n` +
+        `Lie on your back on the floor with your calves resting on a chair or couch, knees and hips bent at 90 degrees. This immediately takes compression off your lumbar vertebrae (L4-S1) and allows the deep hip flexors (psoas) to release their pull on the spine.\n\n` +
+        `**2. What to Avoid Right Now:**\n` +
+        `• Avoid bending forward to touch your toes (spinal flexion under tension can irritate posterior disc walls).\n` +
+        `• Avoid prolonged sitting in soft couches or slumped chairs.\n` +
+        `• Postpone heavy squats, deadlifts, and loaded carries until pain subsides.\n\n` +
+        `**3. Gentle Stability (Once Acute Discomfort Calms):**\n` +
+        `When ready, focus on the Dr. Stuart McGill core stability exercises: the **Bird-Dog** and the **Side Plank** on knees. These build intra-abdominal endurance without spinal flexion.\n\n` +
+        `*Clinical Red Flags: If you experience pain radiating down into your foot, numbness, or tingling, please seek medical evaluation.* Are you experiencing a dull muscular ache or sharp, localized pain?`,
+      toolUsed: "sportsRehabProtocol",
+      toolData: { protocol: "Lumbar Decompression" },
+      telemetry,
+      source: "langchain-sports-rehab",
+    };
+  }
+
+  // 5. Emotional Wellness Focus
+  if (mentionsLowMood) {
+    return {
+      reply: `I hear you, **${telemetry.memberName}**. First, give yourself credit for checking in. Being an athlete isn't just about PRs and peak energy; managing mental fatigue, stress, and low motivation is just as critical.\n\n` +
+        `**Why You Feel This Way (Physiological Context):**\n` +
+        `Heavy training, work pressure, and disrupted sleep cumulatively deplete dopamine reserves and overtax your sympathetic nervous system. When the brain senses systemic fatigue, it downregulates motivation to protect your musculoskeletal system from injury.\n\n` +
+        `**Actionable Recovery Strategy for Today:**\n\n` +
+        `• **Lower the Barrier:** You do not need an intense 90-minute session today. If you want movement, do a 20-minute gentle outdoor walk in natural light to restore serotonin and circadian rhythms.\n` +
+        `• **Downregulate:** Practice the 'Physiological Sigh' (two quick inhales through the nose followed by one long, slow exhale through the mouth) 5 times to immediately drop heart rate and anxiety.\n` +
+        `• **Nutritional Fuel:** Ensure you have had a wholesome meal with adequate protein, complex carbohydrates, and water. Dehydration and low blood sugar severely exacerbate low mood.\n` +
+        `• **Embrace Rest:** Sustainable fitness is built over years, not single days. Rest today so your body can rebuild stronger tomorrow. Coach ${telemetry.trainerName} and I support you taking the space you need.`,
+      toolUsed: "mentalWellnessSupport",
+      toolData: { focus: "CNS Reset", status: "Active Recovery" },
+      telemetry,
+      source: "langchain-mental-wellness",
     };
   }
 
