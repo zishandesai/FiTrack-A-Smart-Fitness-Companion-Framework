@@ -7,7 +7,7 @@ export const signupUser = async (userData) => {
   const normEmail = (userData?.email || "").trim().toLowerCase();
   const payload = { ...userData, email: normEmail };
 
-  // 1. Try Supabase Cloud Database if configured
+  // 1. Try Supabase Cloud Database direct signup if configured
   if (isSupabaseConfigured()) {
     try {
       const res = await supabaseService.signUp(payload);
@@ -19,18 +19,31 @@ export const signupUser = async (userData) => {
         };
       }
     } catch (err) {
-      console.warn("Supabase signup failed, attempting fallback:", err.message || err);
+      console.warn("Supabase direct signup warning, checking API endpoint:", err.message || err);
+      // If Supabase gave an explicit rejection, throw it unless it's an email delivery rate limit
+      if (
+        err?.message?.toLowerCase().includes("already registered") ||
+        err?.message?.toLowerCase().includes("at least 6 characters")
+      ) {
+        throw new Error(err.message);
+      }
     }
   }
 
-  // 2. Try Express REST API if available
+  // 2. Try Serverless / Express REST API
   try {
     const response = await api.post("/auth/signup", payload);
     if (response?.data?.success) {
       return response.data;
     }
+    if (response?.data?.message) {
+      throw new Error(response.data.message);
+    }
   } catch (apiErr) {
-    console.warn("Express backend signup unavailable, saving locally:", apiErr.message || apiErr);
+    if (apiErr?.response?.data?.message) {
+      throw new Error(apiErr.response.data.message);
+    }
+    console.warn("Backend signup endpoint unavailable:", apiErr.message || apiErr);
   }
 
   // 3. Resilient Local Storage Registration
@@ -44,10 +57,12 @@ export const loginUser = async (credentials) => {
 
   // 1. Master Admin instant local bypass for offline admin access
   if (normEmail === "admin@fittrack.com" || normEmail === "admin") {
-    return localAuthenticateUser(creds);
+    if (password === "Admin@12345" || password === "admin" || password === "admin123") {
+      return localAuthenticateUser(creds);
+    }
   }
 
-  // 2. Try Supabase Cloud Database if configured
+  // 2. Try Supabase Cloud Database direct sign-in if configured
   if (isSupabaseConfigured()) {
     try {
       const res = await supabaseService.signIn(creds);
@@ -59,18 +74,24 @@ export const loginUser = async (credentials) => {
         };
       }
     } catch (err) {
-      console.warn("Supabase login failed, attempting fallback:", err.message || err);
+      console.warn("Supabase signIn warning, checking API endpoint:", err.message || err);
     }
   }
 
-  // 3. Try Express REST API if available
+  // 3. Try Serverless / Express REST API
   try {
     const response = await api.post("/auth/login", creds);
     if (response?.data?.success) {
       return response.data;
     }
+    if (response?.data?.message) {
+      throw new Error(response.data.message);
+    }
   } catch (apiErr) {
-    console.warn("Express backend login unavailable, authenticating locally:", apiErr.message || apiErr);
+    if (apiErr?.response?.data?.message) {
+      throw new Error(apiErr.response.data.message);
+    }
+    console.warn("Backend login endpoint unavailable:", apiErr.message || apiErr);
   }
 
   // 4. Resilient Local Storage Authentication (Always logs demo/local accounts in)

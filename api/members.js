@@ -24,6 +24,36 @@ export default async function handler(req, res) {
   const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5ZHpub2tzc2FpcGV2ZWR5eWp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTIyMTcsImV4cCI6MjEwNTkyODIxN30.-tonzFNAJLVFxuMI4IdHeZBuB6l_sdz4h2aeE5K24Yc";
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  if (req.method === "POST") {
+    const { name, email, phone, role = "member", weight = 70 } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    const normEmail = email.trim().toLowerCase();
+    try {
+      const { data: inserted, error: insertErr } = await supabase
+        .from("profiles")
+        .upsert({
+          email: normEmail,
+          name: name || normEmail.split("@")[0],
+          phone: phone || null,
+          role,
+          weight: Number(weight) || 70,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .maybeSingle();
+
+      if (insertErr) {
+        return res.status(400).json({ success: false, message: insertErr.message });
+      }
+
+      return res.status(200).json({ success: true, member: inserted });
+    } catch (e) {
+      return res.status(500).json({ success: false, message: e.message });
+    }
+  }
+
   try {
     const { data, error } = await supabase
       .from("profiles")

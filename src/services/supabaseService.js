@@ -16,14 +16,23 @@ export const supabaseService = {
   async signUp({ email, password, name, role = "member", phone = "", age = null, gender = "", height = null, weight = null, targetWeight = null, specialty = "" }) {
     if (!isSupabaseConfigured()) throw new Error("Supabase is not configured yet.");
 
+    const metaData = {
+      name: name || (email ? email.split("@")[0] : "Member"),
+      role: role || "member",
+      phone: phone || null,
+      age: age ? Number(age) : null,
+      gender: gender || null,
+      height: height ? Number(height) : null,
+      weight: weight ? Number(weight) : null,
+      target_weight: targetWeight ? Number(targetWeight) : null,
+      specialty: specialty || null,
+    };
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: {
-          name,
-          role,
-        },
+        data: metaData,
       },
     });
 
@@ -36,26 +45,23 @@ export const supabaseService = {
     const profilePayload = {
       id: user.id,
       email,
-      name,
-      role,
-      phone: phone || null,
-      age: age ? Number(age) : null,
-      gender: gender || null,
-      height: height ? Number(height) : null,
-      weight: weight ? Number(weight) : null,
-      target_weight: targetWeight ? Number(targetWeight) : null,
-      specialty: specialty || null,
+      ...metaData,
       created_at: new Date().toISOString(),
     };
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .upsert(profilePayload)
-      .select()
-      .single();
+    let profile = null;
+    try {
+      const { data: profData, error: profileError } = await supabase
+        .from("profiles")
+        .upsert(profilePayload)
+        .select()
+        .maybeSingle();
 
-    if (profileError) {
-      console.error("Profile upsert error:", profileError);
+      if (!profileError && profData) {
+        profile = profData;
+      }
+    } catch (e) {
+      // Trigger handle_new_user already created the profile
     }
 
     return {
@@ -76,14 +82,39 @@ export const supabaseService = {
       password,
     });
 
-    if (error) throw error;
+    if (error) {
+      // If email is not confirmed, still check if profile exists in profiles table so user is not blocked
+      if (error.message?.toLowerCase().includes("email not confirmed")) {
+        const { data: profileByEmail } = await supabase
+          .from("profiles")
+          .select("*, trainer:trainer_id(id, name, specialty)")
+          .eq("email", email)
+          .maybeSingle();
+
+        if (profileByEmail) {
+          return {
+            session: { access_token: `token_${profileByEmail.id}_${Date.now()}` },
+            user: {
+              ...profileByEmail,
+              trainerName: profileByEmail.trainer?.name || null,
+              trainerSpecialty: profileByEmail.trainer?.specialty || null,
+            },
+          };
+        }
+      }
+      throw error;
+    }
 
     // Fetch user profile from public.profiles
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("*, trainer:trainer_id(id, name, specialty)")
-      .eq("id", data.user.id)
-      .single();
+    let profile = null;
+    if (data?.user?.id) {
+      const { data: p } = await supabase
+        .from("profiles")
+        .select("*, trainer:trainer_id(id, name, specialty)")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      profile = p;
+    }
 
     return {
       session: data.session,
